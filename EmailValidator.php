@@ -159,7 +159,7 @@ class EmailValidator
         $result = $this->isEmail($value, $checkDNS);
 
         if ($strict) {
-            return $result && empty($this->warnings);
+            return $result && !$this->hasWarnings();
         }
 
         return $result;
@@ -170,9 +170,19 @@ class EmailValidator
         return $this->errors;
     }
 
+    public function hasErrors()
+    {
+        return !empty($this->errors);
+    }
+
     public function getWarnings()
     {
         return $this->warnings;
+    }
+
+    public function hasWarnings()
+    {
+        return !empty($this->warnings);
     }
 
     /**
@@ -657,7 +667,7 @@ class EmailValidator
                         switch ($token) {
                             // End of domain literal
                             case self::STRING_CLOSESQBRACKET:
-                                if (empty($this->warnings) || ((int) max($this->warnings) < self::DEPREC)) {
+                                if (!$this->hasWarnings() || ((int) max($this->warnings) < self::DEPREC)) {
                                     // Could be a valid RFC 5321 address literal, so let's check
 
                                     // http://tools.ietf.org/html/rfc5321#section-4.1.2
@@ -1210,13 +1220,13 @@ class EmailValidator
                 }
 
                 // No point going on if we've got a fatal error
-                if (!empty($this->errors)) {
+                if ($this->hasErrors()) {
                     break;
                 }
             }
 
             // Some simple final tests
-            if (empty($this->errors)) {
+            if (!$this->hasErrors()) {
                 if ($actualContext === self::CONTEXT_QUOTEDSTRING) {
                     // Fatal error
                     $this->errors[] = self::ERR_UNCLOSEDQUOTEDSTR;
@@ -1273,13 +1283,13 @@ class EmailValidator
                 }
             }
 
-            if ($checkDNS && empty($this->errors)) {
+            if (!$this->hasErrors() && $checkDNS) {
                 // Check DNS?
                 $this->checkDNS();
             }
         }
 
-        if (empty($this->errors)) {
+        if (!$this->hasErrors()) {
             $status = self::VALID;
         } else {
             $status = array_unique($this->errors);
