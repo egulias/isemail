@@ -1,5 +1,4 @@
 <?php
-
 class EmailValidator
 {
     const VALID_CATEGORY = 1;
@@ -211,7 +210,9 @@ class EmailValidator
         // Omit validation is there is more than one `@` character
         if (substr_count($value, self::STRING_AT) !== 1) {
             $this->errors[] = self::ERR_CONSECUTIVEATS;
-        } else if (substr_count($value, self::STRING_OPENPARENTHESIS) !== substr_count($value, self::STRING_CLOSEPARENTHESIS)) {
+        } elseif (
+            substr_count($value, self::STRING_OPENPARENTHESIS) !== substr_count($value, self::STRING_CLOSEPARENTHESIS)
+        ) {
             $this->errors[] = self::ERR_UNCLOSEDCOMMENT;
         } else {
             $actualContext = self::COMPONENT_LOCALPART; // Where we are
@@ -259,7 +260,8 @@ class EmailValidator
                             case self::STRING_OPENPARENTHESIS:
                                 if ($this->elementLength === 0) {
                                     // Comments are OK at the beginning of an element
-                                    $this->warnings[] = $this->elementCount === 0 ? self::CFWS_COMMENT : self::DEPREC_COMMENT;
+                                    $this->warnings[] =
+                                        $this->elementCount === 0 ? self::CFWS_COMMENT : self::DEPREC_COMMENT;
                                 } else {
                                     $this->warnings[] = self::CFWS_COMMENT;
 
@@ -274,7 +276,8 @@ class EmailValidator
                             case self::STRING_DOT:
                                 if ($this->elementLength === 0) {
                                     // Another dot, already? Fatal error
-                                    $this->errors[] = $this->elementCount === 0 ? self::ERR_DOT_START : self::ERR_CONSECUTIVEDOTS;
+                                    $this->errors[] =
+                                        $this->elementCount === 0 ? self::ERR_DOT_START : self::ERR_CONSECUTIVEDOTS;
                                 } else {
                                     // The entire local-part can be a quoted string for RFC 5321
                                     // If it's just one atom that is quoted then it's an RFC 5322 obsolete form
@@ -293,7 +296,8 @@ class EmailValidator
                                 $this->elementLength = 0;
                                 ++$this->elementCount;
 
-                                // CFWS & quoted strings are OK again now we're at the beginning of an element (although they are obsolete forms)
+                                // CFWS & quoted strings are OK again
+                                //now we're at the beginning of an element (although they are obsolete forms)
                                 $endOfElement = false;
 
                                 break;
@@ -302,7 +306,8 @@ class EmailValidator
                                 if ($this->elementLength === 0) {
                                     // The entire local-part can be a quoted string for RFC 5321
                                     // If it's just one atom that is quoted then it's an RFC 5322 obsolete form
-                                    $this->warnings[] = $this->elementCount === 0 ? self::RFC5321_QUOTEDSTRING : self::DEPREC_LOCALPART;
+                                    $this->warnings[] =
+                                        $this->elementCount === 0 ? self::RFC5321_QUOTEDSTRING : self::DEPREC_LOCALPART;
 
                                     $contextStack[] = $actualContext;
                                     $actualContext  = self::CONTEXT_QUOTEDSTRING;
@@ -328,7 +333,10 @@ class EmailValidator
                             case self::STRING_CR:
                             case self::STRING_SP:
                             case self::STRING_HTAB:
-                                if (($token === self::STRING_CR) && ((++$i === $rawLength) || ($value[$i] !== self::STRING_LF))) {
+                                if (
+                                    ($token === self::STRING_CR) &&
+                                    ((++$i === $rawLength) || ($value[$i] !== self::STRING_LF))
+                                ) {
                                     // Fatal error
                                     $this->errors[] = self::ERR_CR_NO_LF;
                                     break;
@@ -359,7 +367,9 @@ class EmailValidator
                                     //   The maximum total length of a user name or other local-part is 64
                                     //   octets.
                                     $this->warnings[] = self::RFC5322_LOCAL_TOOLONG;
-                                } elseif (($contextPrev === self::CONTEXT_COMMENT) || ($contextPrev === self::CONTEXT_FWS)) {
+                                } elseif (
+                                    ($contextPrev === self::CONTEXT_COMMENT) || ($contextPrev === self::CONTEXT_FWS)
+                                ) {
                                     // http://tools.ietf.org/html/rfc5322#section-3.4.1
                                     //   Comments and folding white space
                                     //   SHOULD NOT be used around the "@" in the addr-spec.
@@ -411,11 +421,16 @@ class EmailValidator
                                             $this->errors[] = self::ERR_ATEXT_AFTER_QS;
                                             break;
                                         default:
-                                            die ("More atext found where none is allowed, but unrecognised prior context: $contextPrev");
+                                            throw new \Exception(
+                                                "More atext found where none is allowed, but unrecognised prior context:
+                                                $contextPrev"
+                                            );
                                     }
                                 } else {
                                     $ord = ord($token);
-                                    if ($ord < 33 || $ord > 126 || $ord === 10 || in_array($token, $this->specialCharacters)) {
+                                    if ($ord < 33 || $ord > 126 || $ord === 10 ||
+                                        in_array($token, $this->specialCharacters)
+                                    ) {
                                         // Fatal error
                                         $this->errors[]  = self::ERR_EXPECTING_ATEXT;
                                     }
@@ -430,9 +445,8 @@ class EmailValidator
 
                                     ++$this->elementLength;
                                 }
-                            }
-
-                            break;
+                        }
+                        break;
                     //-------------------------------------------------------------
                     // Domain
                     //-------------------------------------------------------------
@@ -484,7 +498,8 @@ class EmailValidator
                                     // Comments at the start of the domain are deprecated in the text
                                     // Comments at the start of a subdomain are obs-domain
                                     // (http://tools.ietf.org/html/rfc5322#section-3.4.1)
-                                    $this->warnings[] = $this->elementCount === 0 ? self::DEPREC_CFWS_NEAR_AT : self::DEPREC_COMMENT;
+                                    $this->warnings[] =
+                                        $this->elementCount === 0 ? self::DEPREC_CFWS_NEAR_AT : self::DEPREC_COMMENT;
                                 } else {
                                     $this->warnings[] = self::CFWS_COMMENT;
 
@@ -500,7 +515,8 @@ class EmailValidator
                                 if ($this->elementLength === 0) {
                                     // Another dot, already?
                                     // Fatal error
-                                    $this->errors[] = $this->elementCount === 0 ? self::ERR_DOT_START : self::ERR_CONSECUTIVEDOTS;
+                                    $this->errors[] =
+                                        $this->elementCount === 0 ? self::ERR_DOT_START : self::ERR_CONSECUTIVEDOTS;
                                 } elseif ($hyphenFlag) {
                                     // Previous subdomain ended in a hyphen
                                     // Fatal error
@@ -532,7 +548,8 @@ class EmailValidator
                                 $this->elementLength = 0;
                                 ++$this->elementCount;
 
-                                // CFWS is OK again now we're at the beginning of an element (although it may be obsolete CFWS)
+                                // CFWS is OK again now we're at the beginning of an element
+                                //(although it may be obsolete CFWS)
                                 $endOfElement = false;
 
                                 break;
@@ -542,7 +559,7 @@ class EmailValidator
                                     ++$this->elementLength;
                                     $contextStack[] = $actualContext;
                                     $actualContext  = self::COMPONENT_LITERAL;
-                                    
+
                                     $this->parseData[self::COMPONENT_LITERAL] = '';
                                     $this->parseData[self::COMPONENT_DOMAIN] .= $token;
 
@@ -550,7 +567,7 @@ class EmailValidator
                                         $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] = '';
                                     }
                                     $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] .= $token;
-                                    
+
                                     // Domain literal must be the only component
                                     $endOfElement = true;
                                 } else {
@@ -563,14 +580,17 @@ class EmailValidator
                             case self::STRING_CR:
                             case self::STRING_SP:
                             case self::STRING_HTAB:
-                                if (($token === self::STRING_CR) && ((++$i === $rawLength) || ($value[$i] !== self::STRING_LF))) {
+                                if (($token === self::STRING_CR) &&
+                                    ((++$i === $rawLength) || ($value[$i] !== self::STRING_LF))
+                                ) {
                                     // Fatal error
                                     $this->errors[] = self::ERR_CR_NO_LF;
                                     break;
                                 }
 
                                 if ($this->elementLength === 0) {
-                                    $this->warnings[] = $this->elementCount === 0 ? self::DEPREC_CFWS_NEAR_AT : self::DEPREC_FWS;
+                                    $this->warnings[] =
+                                        $this->elementCount === 0 ? self::DEPREC_CFWS_NEAR_AT : self::DEPREC_FWS;
                                 } else {
                                     $this->warnings[] = self::CFWS_FWS;
 
@@ -598,7 +618,8 @@ class EmailValidator
                                 //                        "|" / "}" /
                                 //                        "~"
 
-                                // But RFC 5321 only allows letter-digit-hyphen to comply with DNS rules (RFCs 1034 & 1123)
+                                // But RFC 5321 only allows letter-digit-hyphen
+                                //  to comply with DNS rules (RFCs 1034 & 1123)
                                 // http://tools.ietf.org/html/rfc5321#section-4.1.2
                                 //   sub-domain     = Let-dig [Ldh-str]
                                 //
@@ -617,7 +638,10 @@ class EmailValidator
                                             $this->errors[] = self::ERR_ATEXT_AFTER_DOMLIT;
                                             break;
                                         default:
-                                            die ("More atext found where none is allowed, but unrecognised prior context: $contextPrev");
+                                            throw new \Exception(
+                                                "More atext found where none is allowed, but unrecognised prior context:
+                                                $contextPrev"
+                                            );
                                     }
                                 }
 
@@ -636,7 +660,9 @@ class EmailValidator
                                     }
 
                                     $hyphenFlag = true;
-                                } elseif (!(($ord > 47 && $ord < 58) || ($ord > 64 && $ord < 91) || ($ord > 96 && $ord < 123))) {
+                                } elseif (!(($ord > 47 && $ord < 58) || ($ord > 64 && $ord < 91) ||
+                                    ($ord > 96 && $ord < 123))
+                                ) {
                                     // Not an RFC 5321 subdomain, but still OK by RFC 5322
                                     $this->warnings[] = self::RFC5322_DOMAIN;
                                 }
@@ -649,9 +675,9 @@ class EmailValidator
                                 $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] .= $token;
 
                                 ++$this->elementLength;
-                            }
+                        }
 
-                            break;
+                        break;
                     //-------------------------------------------------------------
                     // Domain literal
                     //-------------------------------------------------------------
@@ -727,7 +753,13 @@ class EmailValidator
                                     $addressLiteral = $this->parseData[self::COMPONENT_LITERAL];
 
                                     // Extract IPv4 part from the end of the address-literal (if there is one)
-                                    if (preg_match('/\\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/', $addressLiteral, $matchesIP) > 0) {
+                                    if (
+                                        preg_match(
+                                            '/\\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/',
+                                            $addressLiteral,
+                                            $matchesIP
+                                        ) > 0
+                                    ) {
                                         $index = strrpos($addressLiteral, $matchesIP[0]);
                                         if ($index !== 0) {
                                             // Convert IPv4 part to IPv6 format for further testing
@@ -742,7 +774,8 @@ class EmailValidator
                                         $this->warnings[] = self::RFC5322_DOMAINLITERAL;
                                     } else {
                                         $IPv6       = substr($addressLiteral, 5);
-                                        $matchesIP  = explode(self::STRING_COLON, $IPv6); // Revision 2.7: Daniel Marschall's new IPv6 testing strategy
+                                        // Revision 2.7: Daniel Marschall's new IPv6 testing strategy
+                                        $matchesIP  = explode(self::STRING_COLON, $IPv6);
                                         $groupCount = count($matchesIP);
                                         $index      = strpos($IPv6, self::STRING_DOUBLECOLON);
 
@@ -756,7 +789,8 @@ class EmailValidator
                                                 $this->warnings[] = self::RFC5322_IPV6_2X2XCOLON;
                                             } else {
                                                 if ($index === 0 || $index === (strlen($IPv6) - 2)) {
-                                                    // RFC 4291 allows :: at the start or end of an address with 7 other groups in addition
+                                                    // RFC 4291 allows :: at the start or end of an address
+                                                    //with 7 other groups in addition
                                                     ++$max_groups;
                                                 }
 
@@ -773,10 +807,15 @@ class EmailValidator
                                         if ($IPv6{0} === self::STRING_COLON && $IPv6{1} !== self::STRING_COLON) {
                                             // Address starts with a single colon
                                             $this->warnings[] = self::RFC5322_IPV6_COLONSTRT;
-                                        } elseif (substr($IPv6, -1, 1) === self::STRING_COLON && substr($IPv6, -2, 2) !== self::STRING_DOUBLECOLON) {
+                                        } elseif (substr($IPv6, -1, 1) === self::STRING_COLON &&
+                                            substr($IPv6, -2, 2) !== self::STRING_DOUBLECOLON
+                                        ) {
                                             // Address ends with a single colon
                                             $this->warnings[] = self::RFC5322_IPV6_COLONEND;
-                                        } elseif (count(preg_grep('/^[0-9A-Fa-f]{0,4}$/', $matchesIP, PREG_GREP_INVERT)) !== 0) {
+                                        } elseif (count(
+                                            preg_grep('/^[0-9A-Fa-f]{0,4}$/', $matchesIP, PREG_GREP_INVERT)
+                                        ) !== 0
+                                        ) {
                                             // Check for unmatched characters
                                             $this->warnings[] = self::RFC5322_IPV6_BADCHAR;
                                         } else {
@@ -809,7 +848,9 @@ class EmailValidator
                             case self::STRING_CR:
                             case self::STRING_SP:
                             case self::STRING_HTAB:
-                                if (($token === self::STRING_CR) && ((++$i === $rawLength) || ($value[$i] !== self::STRING_LF))) {
+                                if (($token === self::STRING_CR) &&
+                                    ((++$i === $rawLength) || ($value[$i] !== self::STRING_LF))
+                                ) {
                                     // Fatal error
                                     $this->errors[] = self::ERR_CR_NO_LF;
                                     break;
@@ -879,7 +920,9 @@ class EmailValidator
                             // It's only FWS if we include HTAB or CRLF
                             case self::STRING_CR:
                             case self::STRING_HTAB:
-                                if (($token === self::STRING_CR) && ((++$i === $rawLength) || ($value[$i] !== self::STRING_LF))) {
+                                if (($token === self::STRING_CR) &&
+                                    ((++$i === $rawLength) || ($value[$i] !== self::STRING_LF))
+                                ) {
                                     // Fatal error
                                     $this->errors[] = self::ERR_CR_NO_LF;
                                     break;
@@ -1018,7 +1061,8 @@ class EmailValidator
                                 }
                                 $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] .= $token;
 
-                                // The maximum sizes specified by RFC 5321 are octet counts, so we must include the backslash
+                                // The maximum sizes specified by RFC 5321 are octet counts,
+                                // so we must include the backslash
                                 $this->elementLength += 2;
                                 break;
                             case self::COMPONENT_LITERAL:
@@ -1029,7 +1073,8 @@ class EmailValidator
                                 }
                                 $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] .= $token;
 
-                                // The maximum sizes specified by RFC 5321 are octet counts, so we must include the backslash
+                                // The maximum sizes specified by RFC 5321 are octet counts,
+                                // so we must include the backslash
                                 $this->elementLength += 2;
                                 break;
                             default:
@@ -1066,9 +1111,11 @@ class EmailValidator
                                 // space to the address wherever CFWS appears. This would result in
                                 // any addr-spec that had CFWS outside a quoted string being invalid
                                 // for RFC 5321.
-/*
+                                /*
                                 // @todo
-                                if (($actualContext === self::COMPONENT_LOCALPART) || ($actualContext === self::COMPONENT_DOMAIN)) {
+                                if (($actualContext === self::COMPONENT_LOCALPART) ||
+                                    ($actualContext === self::COMPONENT_DOMAIN)
+                                ) {
                                     $this->parseData[$actualContext] .= self::STRING_SP;
 
                                     if (!isset($this->atomList[$actualContext][$this->elementCount])) {
@@ -1078,7 +1125,7 @@ class EmailValidator
 
                                     ++$this->elementLength;
                                 }
-*/
+                                */
                                 break;
                             // Quoted pair
                             case self::STRING_BACKSLASH:
@@ -1089,7 +1136,9 @@ class EmailValidator
                             case self::STRING_CR:
                             case self::STRING_SP:
                             case self::STRING_HTAB:
-                                if (($token === self::STRING_CR) && ((++$i === $rawLength) || ($value[$i] !== self::STRING_LF))) {
+                                if (($token === self::STRING_CR) &&
+                                    ((++$i === $rawLength) || ($value[$i] !== self::STRING_LF))
+                                ) {
                                     // Fatal error
                                     $this->errors[] = self::ERR_CR_NO_LF;
                                     break;
@@ -1193,9 +1242,11 @@ class EmailValidator
                                 // space to the address wherever CFWS appears. This would result in
                                 // any addr-spec that had CFWS outside a quoted string being invalid
                                 // for RFC 5321.
-/*
+                                /*
                                 // @todo
-                                if (($actualContext === self::COMPONENT_LOCALPART) || ($actualContext === self::COMPONENT_DOMAIN)) {
+                                  if (($actualContext === self::COMPONENT_LOCALPART) ||
+                                      ($actualContext === self::COMPONENT_DOMAIN)
+                                  ) {
                                     $this->parseData[$actualContext] .= self::STRING_SP;
 
                                     if (!isset($this->atomList[$actualContext][$this->elementCount])) {
@@ -1205,7 +1256,7 @@ class EmailValidator
 
                                     ++$this->elementLength;
                                 }
-*/
+                                */
                                 // Look at this token again in the parent context
                                 --$i;
                         }
@@ -1255,7 +1306,9 @@ class EmailValidator
                     // http://tools.ietf.org/html/rfc5321#section-4.5.3.1.2
                     //   The maximum total length of a domain name or number is 255 octets.
                     $this->warnings[] = self::RFC5322_DOMAIN_TOOLONG;
-                } elseif (strlen($this->parseData[self::COMPONENT_LOCALPART].self::STRING_AT.$this->parseData[self::COMPONENT_DOMAIN]) > 254) {
+                } elseif (strlen(
+                    $this->parseData[self::COMPONENT_LOCALPART].self::STRING_AT.$this->parseData[self::COMPONENT_DOMAIN]
+                ) > 254) {
                     // http://tools.ietf.org/html/rfc5321#section-4.1.2
                     //   Forward-path   = Path
                     //
@@ -1304,7 +1357,10 @@ class EmailValidator
     protected function checkDNS()
     {
         $checked = false;
-        if (function_exists('dns_get_record') && (!in_array(self::DNSWARN_NO_RECORD, $this->warnings) && !in_array(self::DNSWARN_NO_MX_RECORD, $this->warnings))) {
+        if (function_exists('dns_get_record') && (
+            !in_array(self::DNSWARN_NO_RECORD, $this->warnings) &&
+            !in_array(self::DNSWARN_NO_MX_RECORD, $this->warnings)
+        )) {
             // http://tools.ietf.org/html/rfc5321#section-2.3.5
             //   Names that can
             //   be resolved to MX RRs or address (i.e., A or AAAA) RRs (as discussed
@@ -1380,12 +1436,16 @@ class EmailValidator
         //   However, a valid host name can never have the dotted-decimal
         //   form #.#.#.#, since this change does not permit the highest-level
         //   component label to start with a digit even if it is not all-numeric.
-        if (!$checked && (!in_array(self::DNSWARN_NO_RECORD, $this->warnings) && !in_array(self::DNSWARN_NO_MX_RECORD, $this->warnings))) {
+        if (!$checked && (!in_array(self::DNSWARN_NO_RECORD, $this->warnings) &&
+            !in_array(self::DNSWARN_NO_MX_RECORD, $this->warnings))
+        ) {
             if ($this->elementCount === 0) {
                 $this->warnings[] = self::RFC5321_TLD;
             }
 
-            if (isset($this->atomList[self::COMPONENT_DOMAIN][$this->elementCount][0]) && is_numeric($this->atomList[self::COMPONENT_DOMAIN][$this->elementCount][0])) {
+            if (isset($this->atomList[self::COMPONENT_DOMAIN][$this->elementCount][0]) &&
+                is_numeric($this->atomList[self::COMPONENT_DOMAIN][$this->elementCount][0])
+            ) {
                 $this->warnings[] = self::RFC5321_TLDNUMERIC;
             }
         }
