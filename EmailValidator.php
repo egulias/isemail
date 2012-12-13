@@ -350,213 +350,7 @@ class EmailValidator
                         //                       obs-dtext          ;  "[", "]", or "\"
                         //
                         //   obs-dtext       =   obs-NO-WS-CTL / quoted-pair
-                        switch ($token) {
-                            // End of domain literal
-                            case self::STRING_CLOSESQBRACKET:
-                                if (!$this->hasWarnings() || ((int) max($this->warnings) < self::DEPREC)) {
-                                    // Could be a valid RFC 5321 address literal, so let's check
-
-                                    // http://tools.ietf.org/html/rfc5321#section-4.1.2
-                                    //   address-literal  = "[" ( IPv4-address-literal /
-                                    //                    IPv6-address-literal /
-                                    //                    General-address-literal ) "]"
-                                    //                    ; See Section 4.1.3
-                                    //
-                                    // http://tools.ietf.org/html/rfc5321#section-4.1.3
-                                    //   IPv4-address-literal  = Snum 3("."  Snum)
-                                    //
-                                    //   IPv6-address-literal  = "IPv6:" IPv6-addr
-                                    //
-                                    //   General-address-literal  = Standardized-tag ":" 1*dcontent
-                                    //
-                                    //   Standardized-tag  = Ldh-str
-                                    //                     ; Standardized-tag MUST be specified in a
-                                    //                     ; Standards-Track RFC and registered with IANA
-                                    //
-                                    //   dcontent       = %d33-90 / ; Printable US-ASCII
-                                    //                  %d94-126 ; excl. "[", "\", "]"
-                                    //
-                                    //   Snum           = 1*3DIGIT
-                                    //                  ; representing a decimal integer
-                                    //                  ; value in the range 0 through 255
-                                    //
-                                    //   IPv6-addr      = IPv6-full / IPv6-comp / IPv6v4-full / IPv6v4-comp
-                                    //
-                                    //   IPv6-hex       = 1*4HEXDIG
-                                    //
-                                    //   IPv6-full      = IPv6-hex 7(":" IPv6-hex)
-                                    //
-                                    //   IPv6-comp      = [IPv6-hex *5(":" IPv6-hex)] "::"
-                                    //                  [IPv6-hex *5(":" IPv6-hex)]
-                                    //                  ; The "::" represents at least 2 16-bit groups of
-                                    //                  ; zeros.  No more than 6 groups in addition to the
-                                    //                  ; "::" may be present.
-                                    //
-                                    //   IPv6v4-full    = IPv6-hex 5(":" IPv6-hex) ":" IPv4-address-literal
-                                    //
-                                    //   IPv6v4-comp    = [IPv6-hex *3(":" IPv6-hex)] "::"
-                                    //                  [IPv6-hex *3(":" IPv6-hex) ":"]
-                                    //                  IPv4-address-literal
-                                    //                  ; The "::" represents at least 2 16-bit groups of
-                                    //                  ; zeros.  No more than 4 groups in addition to the
-                                    //                  ; "::" and IPv4-address-literal may be present.
-                                    //
-                                    // is_email() author's note: We can't use ip2long() to validate
-                                    // IPv4 addresses because it accepts abbreviated addresses
-                                    // (xxx.xxx.xxx), expanding the last group to complete the address.
-                                    // filter_var() validates IPv6 address inconsistently (up to PHP 5.3.3
-                                    // at least) -- see http://bugs.php.net/bug.php?id=53236 for example
-                                    $max_groups = 8;
-                                    $matchesIP  = array();
-                                    /*.mixed.*/
-                                    $index = false;
-                                    $addressLiteral = $this->parseData[self::COMPONENT_LITERAL];
-
-                                    // Extract IPv4 part from the end of the address-literal (if there is one)
-                                    if (
-                                        preg_match(
-                                            '/\\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/',
-                                            $addressLiteral,
-                                            $matchesIP
-                                        ) > 0
-                                    ) {
-                                        $index = strrpos($addressLiteral, $matchesIP[0]);
-                                        if ($index !== 0) {
-                                            // Convert IPv4 part to IPv6 format for further testing
-                                            $addressLiteral = substr($addressLiteral, 0, $index) . '0:0';
-                                        }
-                                    }
-
-                                    if ($index === 0) {
-                                        // Nothing there except a valid IPv4 address, so...
-                                        $this->warnings[] = self::RFC5321_ADDRESSLITERAL;
-                                    } elseif (strncasecmp($addressLiteral, self::STRING_IPV6TAG, 5) !== 0) {
-                                        $this->warnings[] = self::RFC5322_DOMAINLITERAL;
-                                    } else {
-                                        $IPv6       = substr($addressLiteral, 5);
-                                        // Revision 2.7: Daniel Marschall's new IPv6 testing strategy
-                                        $matchesIP  = explode(self::STRING_COLON, $IPv6);
-                                        $groupCount = count($matchesIP);
-                                        $index      = strpos($IPv6, self::STRING_DOUBLECOLON);
-
-                                        if ($index === false) {
-                                            // We need exactly the right number of groups
-                                            if ($groupCount !== $max_groups) {
-                                                $this->warnings[] = self::RFC5322_IPV6_GRPCOUNT;
-                                            }
-                                        } else {
-                                            if ($index !== strrpos($IPv6, self::STRING_DOUBLECOLON)) {
-                                                $this->warnings[] = self::RFC5322_IPV6_2X2XCOLON;
-                                            } else {
-                                                if ($index === 0 || $index === (strlen($IPv6) - 2)) {
-                                                    // RFC 4291 allows :: at the start or end of an address
-                                                    //with 7 other groups in addition
-                                                    ++$max_groups;
-                                                }
-
-                                                if ($groupCount > $max_groups) {
-                                                    $this->warnings[] = self::RFC5322_IPV6_MAXGRPS;
-                                                } elseif ($groupCount === $max_groups) {
-                                                    // Eliding a single "::"
-                                                    $this->warnings[] = self::RFC5321_IPV6DEPRECATED;
-                                                }
-                                            }
-                                        }
-
-                                        // Revision 2.7: Daniel Marschall's new IPv6 testing strategy
-                                        if ($IPv6{0} === self::STRING_COLON && $IPv6{1} !== self::STRING_COLON) {
-                                            // Address starts with a single colon
-                                            $this->warnings[] = self::RFC5322_IPV6_COLONSTRT;
-                                        } elseif (substr($IPv6, -1, 1) === self::STRING_COLON &&
-                                            substr($IPv6, -2, 2) !== self::STRING_DOUBLECOLON
-                                        ) {
-                                            // Address ends with a single colon
-                                            $this->warnings[] = self::RFC5322_IPV6_COLONEND;
-                                        } elseif (count(
-                                            preg_grep('/^[0-9A-Fa-f]{0,4}$/', $matchesIP, PREG_GREP_INVERT)
-                                        ) !== 0
-                                        ) {
-                                            // Check for unmatched characters
-                                            $this->warnings[] = self::RFC5322_IPV6_BADCHAR;
-                                        } else {
-                                            $this->warnings[] = self::RFC5321_ADDRESSLITERAL;
-                                        }
-                                    }
-                                } else {
-                                    $this->warnings[] = self::RFC5322_DOMAINLITERAL;
-                                }
-
-                                $this->contextPrev   = $actualContext;
-                                $actualContext = (int) array_pop($this->contentStack);
-
-                                $this->parseData[self::COMPONENT_DOMAIN] .= $token;
-
-                                if (!isset($this->atomList[self::COMPONENT_DOMAIN][$this->elementCount])) {
-                                    $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] = '';
-                                }
-                                $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] .= $token;
-
-                                ++$this->elementLength;
-                                break;
-                            case self::STRING_BACKSLASH:
-                                $this->warnings[] = self::RFC5322_DOMLIT_OBSDTEXT;
-
-                                $this->contentStack[] = $actualContext;
-                                $actualContext   = self::CONTEXT_QUOTEDPAIR;
-                                break;
-                            // Folding White Space
-                            case self::STRING_CR:
-                            case self::STRING_SP:
-                            case self::STRING_HTAB:
-                                if (($token === self::STRING_CR) &&
-                                    ((++$i === $rawLength) || ($value[$i] !== self::STRING_LF))
-                                ) {
-                                    // Fatal error
-                                    $this->errors[] = self::ERR_CR_NO_LF;
-                                    break;
-                                }
-
-                                $this->warnings[] = self::CFWS_FWS;
-
-                                $this->contentStack[] = $actualContext;
-                                $actualContext  = self::CONTEXT_FWS;
-                                $this->tokenPrev      = $token;
-                                break;
-                            // dtext
-                            default:
-                                // http://tools.ietf.org/html/rfc5322#section-3.4.1
-                                //   dtext           =   %d33-90 /          ; Printable US-ASCII
-                                //                       %d94-126 /         ;  characters not including
-                                //                       obs-dtext          ;  "[", "]", or "\"
-                                //
-                                //   obs-dtext       =   obs-NO-WS-CTL / quoted-pair
-                                //
-                                //   obs-NO-WS-CTL   =   %d1-8 /            ; US-ASCII control
-                                //                       %d11 /             ;  characters that do not
-                                //                       %d12 /             ;  include the carriage
-                                //                       %d14-31 /          ;  return, line feed, and
-                                //                       %d127              ;  white space characters
-                                $ord = ord($token);
-
-                                // CR, LF, SP & HTAB have already been parsed above
-                                if ($ord > 127 || $ord === 0 || $token === self::STRING_OPENSQBRACKET) {
-                                    // Fatal error
-                                    $this->errors[]  = self::ERR_EXPECTING_DTEXT;
-                                    break;
-                                } elseif ($ord < 33 || $ord === 127) {
-                                    $this->warnings[] = self::RFC5322_DOMLIT_OBSDTEXT;
-                                }
-
-                                $this->parseData[self::COMPONENT_LITERAL] .= $token;
-                                $this->parseData[self::COMPONENT_DOMAIN]  .= $token;
-
-                                if (!isset($this->atomList[self::COMPONENT_DOMAIN][$this->elementCount])) {
-                                    $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] = '';
-                                }
-                                $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] .= $token;
-
-                                ++$this->elementLength;
-                        }
+                        $actualContext = $this->checkTokenLiteralComponent($token, $actualContext, $i);
 
                         break;
                     //-------------------------------------------------------------
@@ -1018,6 +812,8 @@ class EmailValidator
      * @param string $token
      * @param int    $context
      * @param int    $i
+     *
+     * @return int actualContext
      */
     protected function checkTokenLocalPart($token, $context, &$i)
     {
@@ -1207,6 +1003,15 @@ class EmailValidator
         return $actualContext;
     }
 
+    /**
+     * checkTokenDomainComponent
+     *
+     * @param string  $token
+     * @param int     $context
+     * @param int     $i
+     *
+     * @return int actualContext
+     */
     protected function checkTokenDomainComponent($token, $context, &$i)
     {
         $actualContext = $context;
@@ -1395,6 +1200,223 @@ class EmailValidator
 
                 ++$this->elementLength;
         }
+        return $actualContext;
+    }
+
+    /**
+     * checkTokenLiteralComponent
+     *
+     * @param string  $token
+     * @param string  $actualContext
+     * @param int     $i
+     *
+     * @return int actualContext
+     */
+    protected function checkTokenLiteralComponent($token, $actualContext, &$i)
+    {
+        $context = $actualContext;
+        switch ($token) {
+            // End of domain literal
+            case self::STRING_CLOSESQBRACKET:
+                $this->contextPrev   = $context;
+                $actualContext = (int) array_pop($this->contentStack);
+
+                $this->parseData[self::COMPONENT_DOMAIN] .= $token;
+
+                //if (!isset($this->atomList[self::COMPONENT_DOMAIN][$this->elementCount])) {
+                //    $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] = '';
+                //}
+                $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] .= $token;
+
+                ++$this->elementLength;
+
+                if ($this->hasWarnings() && ((int) max($this->warnings) > self::DEPREC)) {
+                    $this->warnings[] = self::RFC5322_DOMAINLITERAL;
+                    break;
+                }
+                // Could be a valid RFC 5321 address literal, so let's check
+
+                // http://tools.ietf.org/html/rfc5321#section-4.1.2
+                //   address-literal  = "[" ( IPv4-address-literal /
+                //                    IPv6-address-literal /
+                //                    General-address-literal ) "]"
+                //                    ; See Section 4.1.3
+                //
+                // http://tools.ietf.org/html/rfc5321#section-4.1.3
+                //   IPv4-address-literal  = Snum 3("."  Snum)
+                //
+                //   IPv6-address-literal  = "IPv6:" IPv6-addr
+                //
+                //   General-address-literal  = Standardized-tag ":" 1*dcontent
+                //
+                //   Standardized-tag  = Ldh-str
+                //                     ; Standardized-tag MUST be specified in a
+                //                     ; Standards-Track RFC and registered with IANA
+                //
+                //   dcontent       = %d33-90 / ; Printable US-ASCII
+                //                  %d94-126 ; excl. "[", "\", "]"
+                //
+                //   Snum           = 1*3DIGIT
+                //                  ; representing a decimal integer
+                //                  ; value in the range 0 through 255
+                //
+                //   IPv6-addr      = IPv6-full / IPv6-comp / IPv6v4-full / IPv6v4-comp
+                //
+                //   IPv6-hex       = 1*4HEXDIG
+                //
+                //   IPv6-full      = IPv6-hex 7(":" IPv6-hex)
+                //
+                //   IPv6-comp      = [IPv6-hex *5(":" IPv6-hex)] "::"
+                //                  [IPv6-hex *5(":" IPv6-hex)]
+                //                  ; The "::" represents at least 2 16-bit groups of
+                //                  ; zeros.  No more than 6 groups in addition to the
+                //                  ; "::" may be present.
+                //
+                //   IPv6v4-full    = IPv6-hex 5(":" IPv6-hex) ":" IPv4-address-literal
+                //
+                //   IPv6v4-comp    = [IPv6-hex *3(":" IPv6-hex)] "::"
+                //                  [IPv6-hex *3(":" IPv6-hex) ":"]
+                //                  IPv4-address-literal
+                //                  ; The "::" represents at least 2 16-bit groups of
+                //                  ; zeros.  No more than 4 groups in addition to the
+                //                  ; "::" and IPv4-address-literal may be present.
+                //
+                // is_email() author's note: We can't use ip2long() to validate
+                // IPv4 addresses because it accepts abbreviated addresses
+                // (xxx.xxx.xxx), expanding the last group to complete the address.
+                // filter_var() validates IPv6 address inconsistently (up to PHP 5.3.3
+                // at least) -- see http://bugs.php.net/bug.php?id=53236 for example
+                $max_groups = 8;
+                $matchesIP  = array();
+                /*.mixed.*/
+                $index = false;
+                $addressLiteral = $this->parseData[self::COMPONENT_LITERAL];
+
+                // Extract IPv4 part from the end of the address-literal (if there is one)
+                if (preg_match(
+                    '/\\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/',
+                    $addressLiteral,
+                    $matchesIP
+                ) > 0
+                ) {
+                    $index = strrpos($addressLiteral, $matchesIP[0]);
+                    if ($index !== 0) {
+                        // Convert IPv4 part to IPv6 format for further testing
+                        $addressLiteral = substr($addressLiteral, 0, $index) . '0:0';
+                    }
+                }
+
+                if ($index === 0) {
+                    // Nothing there except a valid IPv4 address, so...
+                    $this->warnings[] = self::RFC5321_ADDRESSLITERAL;
+                } elseif (strncasecmp($addressLiteral, self::STRING_IPV6TAG, 5) !== 0) {
+                    $this->warnings[] = self::RFC5322_DOMAINLITERAL;
+                } else {
+                    $IPv6       = substr($addressLiteral, 5);
+                    // Revision 2.7: Daniel Marschall's new IPv6 testing strategy
+                    $matchesIP  = explode(self::STRING_COLON, $IPv6);
+                    $groupCount = count($matchesIP);
+                    $index      = strpos($IPv6, self::STRING_DOUBLECOLON);
+
+                    if ($index === false) {
+                        // We need exactly the right number of groups
+                        if ($groupCount !== $max_groups) {
+                            $this->warnings[] = self::RFC5322_IPV6_GRPCOUNT;
+                        }
+                    } else {
+                        if ($index !== strrpos($IPv6, self::STRING_DOUBLECOLON)) {
+                            $this->warnings[] = self::RFC5322_IPV6_2X2XCOLON;
+                        } else {
+                            if ($index === 0 || $index === (strlen($IPv6) - 2)) {
+                                // RFC 4291 allows :: at the start or end of an address
+                                //with 7 other groups in addition
+                                ++$max_groups;
+                            }
+
+                            if ($groupCount > $max_groups) {
+                                $this->warnings[] = self::RFC5322_IPV6_MAXGRPS;
+                            } elseif ($groupCount === $max_groups) {
+                                // Eliding a single "::"
+                                $this->warnings[] = self::RFC5321_IPV6DEPRECATED;
+                            }
+                        }
+                    }
+
+                    // Revision 2.7: Daniel Marschall's new IPv6 testing strategy
+                    if ($IPv6{0} === self::STRING_COLON && $IPv6{1} !== self::STRING_COLON) {
+                        // Address starts with a single colon
+                        $this->warnings[] = self::RFC5322_IPV6_COLONSTRT;
+                    } elseif (substr($IPv6, -1, 1) === self::STRING_COLON &&
+                        substr($IPv6, -2, 2) !== self::STRING_DOUBLECOLON
+                    ) {
+                        // Address ends with a single colon
+                        $this->warnings[] = self::RFC5322_IPV6_COLONEND;
+                    } elseif (count(preg_grep('/^[0-9A-Fa-f]{0,4}$/', $matchesIP, PREG_GREP_INVERT)) !== 0) {
+                        // Check for unmatched characters
+                        $this->warnings[] = self::RFC5322_IPV6_BADCHAR;
+                    } else {
+                        $this->warnings[] = self::RFC5321_ADDRESSLITERAL;
+                    }
+                }
+                break;
+            case self::STRING_BACKSLASH:
+                $this->warnings[] = self::RFC5322_DOMLIT_OBSDTEXT;
+                $this->contentStack[] = $context;
+                $actualContext   = self::CONTEXT_QUOTEDPAIR;
+                break;
+            // Folding White Space
+            case self::STRING_CR:
+            case self::STRING_SP:
+            case self::STRING_HTAB:
+                $rawLength = strlen($this->value);
+                if (($token === self::STRING_CR) && ((++$i === $rawLength) || ($this->value[$i] !== self::STRING_LF))) {
+                    // Fatal error
+                    $this->errors[] = self::ERR_CR_NO_LF;
+                    break;
+                }
+
+                $this->warnings[] = self::CFWS_FWS;
+
+                $this->contentStack[] = $context;
+                $actualContext  = self::CONTEXT_FWS;
+                $this->tokenPrev      = $token;
+                break;
+            // dtext
+            default:
+                // http://tools.ietf.org/html/rfc5322#section-3.4.1
+                //   dtext           =   %d33-90 /          ; Printable US-ASCII
+                //                       %d94-126 /         ;  characters not including
+                //                       obs-dtext          ;  "[", "]", or "\"
+                //
+                //   obs-dtext       =   obs-NO-WS-CTL / quoted-pair
+                //
+                //   obs-NO-WS-CTL   =   %d1-8 /            ; US-ASCII control
+                //                       %d11 /             ;  characters that do not
+                //                       %d12 /             ;  include the carriage
+                //                       %d14-31 /          ;  return, line feed, and
+                //                       %d127              ;  white space characters
+                $ord = ord($token);
+
+                // CR, LF, SP & HTAB have already been parsed above
+                if ($ord > 127 || $ord === 0 || $token === self::STRING_OPENSQBRACKET) {
+                    // Fatal error
+                    $this->errors[]  = self::ERR_EXPECTING_DTEXT;
+                    break;
+                } elseif ($ord < 33 || $ord === 127) {
+                    $this->warnings[] = self::RFC5322_DOMLIT_OBSDTEXT;
+                }
+
+                $this->parseData[self::COMPONENT_LITERAL] .= $token;
+                $this->parseData[self::COMPONENT_DOMAIN]  .= $token;
+
+                //if (!isset($this->atomList[self::COMPONENT_DOMAIN][$this->elementCount])) {
+                //    $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] = '';
+                //}
+                $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] .= $token;
+
+                ++$this->elementLength;
+        }
+
         return $actualContext;
     }
 
