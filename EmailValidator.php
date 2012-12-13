@@ -363,96 +363,7 @@ class EmailValidator
                         //                       [CFWS]
                         //
                         //   qcontent        =   qtext / quoted-pair
-                        switch ($token) {
-                            // Quoted pair
-                            case self::STRING_BACKSLASH:
-                                $this->contentStack[] = $actualContext;
-                                $actualContext  = self::CONTEXT_QUOTEDPAIR;
-                                break;
-                            // Folding White Space
-                            // Inside a quoted string, spaces are allowed as regular characters.
-                            // It's only FWS if we include HTAB or CRLF
-                            case self::STRING_CR:
-                            case self::STRING_HTAB:
-                                if (($token === self::STRING_CR) &&
-                                    ((++$i === $rawLength) || ($value[$i] !== self::STRING_LF))
-                                ) {
-                                    // Fatal error
-                                    $this->errors[] = self::ERR_CR_NO_LF;
-                                    break;
-                                }
-
-                                // http://tools.ietf.org/html/rfc5322#section-3.2.2
-                                //   Runs of FWS, comment, or CFWS that occur between lexical tokens in a
-                                //   structured header field are semantically interpreted as a single
-                                //   space character.
-
-                                // http://tools.ietf.org/html/rfc5322#section-3.2.4
-                                //   the CRLF in any FWS/CFWS that appears within the quoted-string [is]
-                                //   semantically "invisible" and therefore not part of the quoted-string
-                                $this->warnings[] = self::CFWS_FWS;
-
-                                $this->contentStack[] = $actualContext;
-                                $actualContext  = self::CONTEXT_FWS;
-                                $this->tokenPrev      = $token;
-
-                                $this->parseData[self::COMPONENT_LOCALPART] .= self::STRING_SP;
-
-                                if (!isset($this->atomList[self::COMPONENT_LOCALPART][$this->elementCount])) {
-                                    $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] = '';
-                                }
-                                $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] .= self::STRING_SP;
-
-                                ++$this->elementLength;
-                                break;
-                            // End of quoted string
-                            case self::STRING_DQUOTE:
-                                $this->contextPrev   = $actualContext;
-                                $actualContext = (int) array_pop($this->contentStack);
-
-                                $this->parseData[self::COMPONENT_LOCALPART] .= $token;
-
-                                if (!isset($this->atomList[self::COMPONENT_LOCALPART][$this->elementCount])) {
-                                    $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] = '';
-                                }
-                                $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] .= $token;
-
-                                ++$this->elementLength;
-                                break;
-                            // qtext
-                            default:
-                                // http://tools.ietf.org/html/rfc5322#section-3.2.4
-                                //   qtext           =   %d33 /             ; Printable US-ASCII
-                                //                       %d35-91 /          ;  characters not including
-                                //                       %d93-126 /         ;  "\" or the quote character
-                                //                       obs-qtext
-                                //
-                                //   obs-qtext       =   obs-NO-WS-CTL
-                                //
-                                //   obs-NO-WS-CTL   =   %d1-8 /            ; US-ASCII control
-                                //                       %d11 /             ;  characters that do not
-                                //                       %d12 /             ;  include the carriage
-                                //                       %d14-31 /          ;  return, line feed, and
-                                //                       %d127              ;  white space characters
-                                $ord = ord($token);
-
-                                if ($ord > 127 || $ord === 0 || $ord === 10) {
-                                    // Fatal error
-                                    $this->errors[]  = self::ERR_EXPECTING_QTEXT;
-                                } elseif ($ord < 32 || $ord === 127) {
-                                    // Fatal error
-                                    $this->warnings[] = self::DEPREC_QTEXT;
-                                }
-
-                                $this->parseData[self::COMPONENT_LOCALPART] .= $token;
-
-                                if (!isset($this->atomList[self::COMPONENT_LOCALPART][$this->elementCount])) {
-                                    $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] = '';
-                                }
-                                $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] .= $token;
-
-                                ++$this->elementLength;
-                        }
+                        $actualContext = $this->checkTokenContextQuotedString($token, $actualContext, $i);
 
                         // @Todo
                         // http://tools.ietf.org/html/rfc5322#section-3.4.1
@@ -1417,6 +1328,111 @@ class EmailValidator
                 ++$this->elementLength;
         }
 
+        return $actualContext;
+    }
+
+    /**
+     * checkTokenContextQuotedString
+     *
+     * @param string  $token
+     * @param int     $actualContext
+     * @param int     $i
+     *
+     * @return int actualContext
+     */
+    protected function checkTokenContextQuotedString($token, $actualContext, $i)
+    {
+
+        $context = $actualContext;
+        switch ($token) {
+            // Quoted pair
+            case self::STRING_BACKSLASH:
+                $this->contentStack[] = $context;
+                $actualContext  = self::CONTEXT_QUOTEDPAIR;
+                break;
+            // Folding White Space
+            // Inside a quoted string, spaces are allowed as regular characters.
+            // It's only FWS if we include HTAB or CRLF
+            case self::STRING_CR:
+            case self::STRING_HTAB:
+                $rawLength = strlen($this->value);
+                if (($token === self::STRING_CR) && ((++$i === $rawLength) || ($this->value[$i] !== self::STRING_LF))) {
+                    // Fatal error
+                    $this->errors[] = self::ERR_CR_NO_LF;
+                    break;
+                }
+
+                // http://tools.ietf.org/html/rfc5322#section-3.2.2
+                //   Runs of FWS, comment, or CFWS that occur between lexical tokens in a
+                //   structured header field are semantically interpreted as a single
+                //   space character.
+
+                // http://tools.ietf.org/html/rfc5322#section-3.2.4
+                //   the CRLF in any FWS/CFWS that appears within the quoted-string [is]
+                //   semantically "invisible" and therefore not part of the quoted-string
+                $this->warnings[] = self::CFWS_FWS;
+
+                $this->contentStack[] = $actualContext;
+                $actualContext  = self::CONTEXT_FWS;
+                $this->tokenPrev      = $token;
+
+                $this->parseData[self::COMPONENT_LOCALPART] .= self::STRING_SP;
+
+                if (!isset($this->atomList[self::COMPONENT_LOCALPART][$this->elementCount])) {
+                    $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] = '';
+                }
+                $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] .= self::STRING_SP;
+
+                ++$this->elementLength;
+                break;
+            // End of quoted string
+            case self::STRING_DQUOTE:
+                $this->contextPrev   = $context;
+                $actualContext = (int) array_pop($this->contentStack);
+
+                $this->parseData[self::COMPONENT_LOCALPART] .= $token;
+
+                if (!isset($this->atomList[self::COMPONENT_LOCALPART][$this->elementCount])) {
+                    $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] = '';
+                }
+                $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] .= $token;
+
+                ++$this->elementLength;
+                break;
+            // qtext
+            default:
+                // http://tools.ietf.org/html/rfc5322#section-3.2.4
+                //   qtext           =   %d33 /             ; Printable US-ASCII
+                //                       %d35-91 /          ;  characters not including
+                //                       %d93-126 /         ;  "\" or the quote character
+                //                       obs-qtext
+                //
+                //   obs-qtext       =   obs-NO-WS-CTL
+                //
+                //   obs-NO-WS-CTL   =   %d1-8 /            ; US-ASCII control
+                //                       %d11 /             ;  characters that do not
+                //                       %d12 /             ;  include the carriage
+                //                       %d14-31 /          ;  return, line feed, and
+                //                       %d127              ;  white space characters
+                $ord = ord($token);
+
+                if ($ord > 127 || $ord === 0 || $ord === 10) {
+                    // Fatal error
+                    $this->errors[]  = self::ERR_EXPECTING_QTEXT;
+                } elseif ($ord < 32 || $ord === 127) {
+                    // Fatal error
+                    $this->warnings[] = self::DEPREC_QTEXT;
+                }
+
+                $this->parseData[self::COMPONENT_LOCALPART] .= $token;
+
+                if (!isset($this->atomList[self::COMPONENT_LOCALPART][$this->elementCount])) {
+                    $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] = '';
+                }
+                $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] .= $token;
+
+                ++$this->elementLength;
+        }
         return $actualContext;
     }
 
