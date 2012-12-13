@@ -146,12 +146,25 @@ class EmailValidator
     protected $errors   = array();
     protected $warnings = array();
 
+    protected $valule = '';
+
     /**
      * crlf_count
      *
      * @var int
      */
     protected $crlf_count = 0;
+
+    /**
+     *  Context control
+     */
+    protected $actualContext;
+    protected $contextPrev;
+    protected $contextStack = array();
+
+    protected $tokenPrev;
+    protected $endOfElement = false;
+
 
     public function __construct()
     {
@@ -162,8 +175,9 @@ class EmailValidator
     {
         $this->errors   = array();
         $this->warnings = array();
+        $this->value = $value;
 
-        $result = $this->isEmail($value, $checkDNS);
+        $result = $this->isEmail($this->value, $checkDNS);
 
         if ($strict) {
             return $result && !$this->hasWarnings();
@@ -224,17 +238,17 @@ class EmailValidator
             $this->errors[] = self::ERR_UNCLOSEDCOMMENT;
         } else {
             $actualContext = self::COMPONENT_LOCALPART; // Where we are
-            $contextPrev   = self::COMPONENT_LOCALPART; // Where we just came from
-            $contextStack  = array($actualContext);     // Where we have been
+            $this->contextPrev   = self::COMPONENT_LOCALPART; // Where we just came from
+            $this->contentStack  = array($actualContext);     // Where we have been
 
             $token     =
-            $tokenPrev = '';
+            $this->tokenPrev = '';
 
             // Hyphen cannot occur at the end of a subdomain
             $hyphenFlag = false;
 
             // CFWS can only appear at the end of the element
-            $endOfElement = false;
+            //$endOfElement = false;
 
             // Parse the address into components, character by character
             $rawLength = strlen($value);
@@ -263,197 +277,7 @@ class EmailValidator
                         //   word            =   atom / quoted-string
                         //
                         //   atom            =   [CFWS] 1*atext [CFWS]
-                        switch ($token) {
-                            // Comment
-                            case self::STRING_OPENPARENTHESIS:
-                                if ($this->elementLength === 0) {
-                                    // Comments are OK at the beginning of an element
-                                    $this->warnings[] =
-                                        $this->elementCount === 0 ? self::CFWS_COMMENT : self::DEPREC_COMMENT;
-                                } else {
-                                    $this->warnings[] = self::CFWS_COMMENT;
-
-                                    // We can't start a comment in the middle of an element, so this better be the end
-                                    $endOfElement     = true;
-                                }
-
-                                $contextStack[] = $actualContext;
-                                $actualContext  = self::CONTEXT_COMMENT;
-                                break;
-                            // Next dot-atom element
-                            case self::STRING_DOT:
-                                if ($this->elementLength === 0) {
-                                    // Another dot, already? Fatal error
-                                    $this->errors[] =
-                                        $this->elementCount === 0 ? self::ERR_DOT_START : self::ERR_CONSECUTIVEDOTS;
-                                } else {
-                                    // The entire local-part can be a quoted string for RFC 5321
-                                    // If it's just one atom that is quoted then it's an RFC 5322 obsolete form
-                                    if ($endOfElement) {
-                                        $this->warnings[] = self::DEPREC_LOCALPART;
-                                    }
-                                }
-
-                                $this->parseData[self::COMPONENT_LOCALPART] .= $token;
-
-                                if (!isset($this->atomList[self::COMPONENT_LOCALPART][$this->elementCount])) {
-                                    $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] = '';
-                                }
-                                $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] = '';
-
-                                $this->elementLength = 0;
-                                ++$this->elementCount;
-
-                                // CFWS & quoted strings are OK again
-                                //now we're at the beginning of an element (although they are obsolete forms)
-                                $endOfElement = false;
-
-                                break;
-                            // Quoted string
-                            case self::STRING_DQUOTE:
-                                if ($this->elementLength === 0) {
-                                    // The entire local-part can be a quoted string for RFC 5321
-                                    // If it's just one atom that is quoted then it's an RFC 5322 obsolete form
-                                    $this->warnings[] =
-                                        $this->elementCount === 0 ? self::RFC5321_QUOTEDSTRING : self::DEPREC_LOCALPART;
-
-                                    $contextStack[] = $actualContext;
-                                    $actualContext  = self::CONTEXT_QUOTEDSTRING;
-
-                                    $this->parseData[self::COMPONENT_LOCALPART] .= $token;
-
-                                    if (!isset($this->atomList[self::COMPONENT_LOCALPART][$this->elementCount])) {
-                                        $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] = '';
-                                    }
-                                    $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] .= $token;
-
-                                    ++$this->elementLength;
-
-                                    // Quoted string must be the entire element
-                                    $endOfElement   = true;
-                                } else {
-                                    // Fatal error
-                                    $this->errors[] = self::ERR_EXPECTING_ATEXT;
-                                }
-
-                                break;
-                            // Folding White Space
-                            case self::STRING_CR:
-                            case self::STRING_SP:
-                            case self::STRING_HTAB:
-                                if (
-                                    ($token === self::STRING_CR) &&
-                                    ((++$i === $rawLength) || ($value[$i] !== self::STRING_LF))
-                                ) {
-                                    // Fatal error
-                                    $this->errors[] = self::ERR_CR_NO_LF;
-                                    break;
-                                }
-
-                                if ($this->elementLength === 0) {
-                                    $this->warnings[] = $this->elementCount === 0 ? self::CFWS_FWS : self::DEPREC_FWS;
-                                } else {
-                                    // We can't start FWS in the middle of an element, so this better be the end
-                                    $endOfElement = true;
-                                }
-
-                                $contextStack[] = $actualContext;
-                                $actualContext  = self::CONTEXT_FWS;
-                                $tokenPrev      = $token;
-
-                                break;
-                            // @
-                            case self::STRING_AT:
-                                if ($this->parseData[self::COMPONENT_LOCALPART] === '') {
-                                    // Fatal error
-                                    $this->errors[] = self::ERR_NOLOCALPART;
-                                } elseif ($this->elementLength === 0) {
-                                    // Fatal error
-                                    $this->errors[] = self::ERR_DOT_END;
-                                } elseif (strlen($this->parseData[self::COMPONENT_LOCALPART]) > 64) {
-                                    // http://tools.ietf.org/html/rfc5321#section-4.5.3.1.1
-                                    //   The maximum total length of a user name or other local-part is 64
-                                    //   octets.
-                                    $this->warnings[] = self::RFC5322_LOCAL_TOOLONG;
-                                } elseif (
-                                    ($contextPrev === self::CONTEXT_COMMENT) || ($contextPrev === self::CONTEXT_FWS)
-                                ) {
-                                    // http://tools.ietf.org/html/rfc5322#section-3.4.1
-                                    //   Comments and folding white space
-                                    //   SHOULD NOT be used around the "@" in the addr-spec.
-                                    //
-                                    // http://tools.ietf.org/html/rfc2119
-                                    // 4. SHOULD NOT   This phrase, or the phrase "NOT RECOMMENDED" mean that
-                                    //    there may exist valid reasons in particular circumstances when the
-                                    //    particular behavior is acceptable or even useful, but the full
-                                    //    implications should be understood and the case carefully weighed
-                                    //    before implementing any behavior described with this label.
-                                    $this->warnings[] = self::DEPREC_CFWS_NEAR_AT;
-                                }
-
-                                // Clear everything down for the domain parsing
-                                // Where we are
-                                $actualContext = self::COMPONENT_DOMAIN;
-                                // Where we have been
-                                $contextStack  = array($actualContext);
-
-                                $this->elementCount  = 0;
-                                $this->elementLength = 0;
-
-                                // CFWS can only appear at the end of the element
-                                $endOfElement = false;
-
-                                break;
-                            // atext
-                            default:
-                                // http://tools.ietf.org/html/rfc5322#section-3.2.3
-                                //    atext           =   ALPHA / DIGIT /    ; Printable US-ASCII
-                                //                        "!" / "#" /        ;  characters not including
-                                //                        "$" / "%" /        ;  specials.  Used for atoms.
-                                //                        "&" / "'" /
-                                //                        "*" / "+" /
-                                //                        "-" / "/" /
-                                //                        "=" / "?" /
-                                //                        "^" / "_" /
-                                //                        "`" / "{" /
-                                //                        "|" / "}" /
-                                //                        "~"
-                                if ($endOfElement) {
-                                    // We have encountered atext where it is no longer valid
-                                    switch ($contextPrev) {
-                                        case self::CONTEXT_COMMENT:
-                                        case self::CONTEXT_FWS:
-                                            $this->errors[] = self::ERR_ATEXT_AFTER_CFWS;
-                                            break;
-                                        case self::CONTEXT_QUOTEDSTRING:
-                                            $this->errors[] = self::ERR_ATEXT_AFTER_QS;
-                                            break;
-                                        default:
-                                            throw new \Exception(
-                                                "More atext found where none is allowed, but unrecognised prior context:
-                                                $contextPrev"
-                                            );
-                                    }
-                                } else {
-                                    $ord = ord($token);
-                                    if ($ord < 33 || $ord > 126 || $ord === 10 ||
-                                        in_array($token, $this->specialCharacters)
-                                    ) {
-                                        // Fatal error
-                                        $this->errors[]  = self::ERR_EXPECTING_ATEXT;
-                                    }
-                                    $contextPrev = $actualContext;
-
-                                    $this->parseData[self::COMPONENT_LOCALPART] .= $token;
-
-                                    if (!isset($this->atomList[self::COMPONENT_LOCALPART][$this->elementCount])) {
-                                        $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] = '';
-                                    }
-                                    $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] .= $token;
-
-                                    ++$this->elementLength;
-                                }
-                        }
+                        $actualContext = $this->checkTokenLocalPart($token, $actualContext, &$i);
                         break;
                     //-------------------------------------------------------------
                     // Domain
@@ -512,10 +336,10 @@ class EmailValidator
                                     $this->warnings[] = self::CFWS_COMMENT;
 
                                     // We can't start a comment in the middle of an element, so this better be the end
-                                    $endOfElement = true;
+                                    $this->endOfElement = true;
                                 }
 
-                                $contextStack[] = $actualContext;
+                                $this->contentStack[] = $actualContext;
                                 $actualContext  = self::CONTEXT_COMMENT;
                                 break;
                             // Next dot-atom element
@@ -558,14 +382,14 @@ class EmailValidator
 
                                 // CFWS is OK again now we're at the beginning of an element
                                 //(although it may be obsolete CFWS)
-                                $endOfElement = false;
+                                $this->endOfElement = false;
 
                                 break;
                             // Domain literal
                             case self::STRING_OPENSQBRACKET:
                                 if ($this->parseData[self::COMPONENT_DOMAIN] === '') {
                                     ++$this->elementLength;
-                                    $contextStack[] = $actualContext;
+                                    $this->contentStack[] = $actualContext;
                                     $actualContext  = self::COMPONENT_LITERAL;
 
                                     $this->parseData[self::COMPONENT_LITERAL] = '';
@@ -577,7 +401,7 @@ class EmailValidator
                                     $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] .= $token;
 
                                     // Domain literal must be the only component
-                                    $endOfElement = true;
+                                    $this->endOfElement = true;
                                 } else {
                                     // Fatal error
                                     $this->errors[] = self::ERR_EXPECTING_ATEXT;
@@ -603,12 +427,12 @@ class EmailValidator
                                     $this->warnings[] = self::CFWS_FWS;
 
                                     // We can't start FWS in the middle of an element, so this better be the end
-                                    $endOfElement = true;
+                                    $this->endOfElement = true;
                                 }
 
-                                $contextStack[] = $actualContext;
+                                $this->contentStack[] = $actualContext;
                                 $actualContext  = self::CONTEXT_FWS;
-                                $tokenPrev      = $token;
+                                $this->tokenPrev      = $token;
                                 break;
                             // atext
                             default:
@@ -635,9 +459,9 @@ class EmailValidator
                                 //
                                 //   Ldh-str        = *( ALPHA / DIGIT / "-" ) Let-dig
                                 //
-                                if ($endOfElement) {
+                                if ($this->endOfElement) {
                                     // We have encountered atext where it is no longer valid
-                                    switch ($contextPrev) {
+                                    switch ($this->contextPrev) {
                                         case self::CONTEXT_COMMENT:
                                         case self::CONTEXT_FWS:
                                             $this->errors[] = self::ERR_ATEXT_AFTER_CFWS;
@@ -648,7 +472,7 @@ class EmailValidator
                                         default:
                                             throw new \Exception(
                                                 "More atext found where none is allowed, but unrecognised prior context:
-                                                $contextPrev"
+                                                $this->contextPrev"
                                             );
                                     }
                                 }
@@ -834,8 +658,8 @@ class EmailValidator
                                     $this->warnings[] = self::RFC5322_DOMAINLITERAL;
                                 }
 
-                                $contextPrev   = $actualContext;
-                                $actualContext = (int) array_pop($contextStack);
+                                $this->contextPrev   = $actualContext;
+                                $actualContext = (int) array_pop($this->contentStack);
 
                                 $this->parseData[self::COMPONENT_DOMAIN] .= $token;
 
@@ -849,7 +673,7 @@ class EmailValidator
                             case self::STRING_BACKSLASH:
                                 $this->warnings[] = self::RFC5322_DOMLIT_OBSDTEXT;
 
-                                $contextStack[] = $actualContext;
+                                $this->contentStack[] = $actualContext;
                                 $actualContext   = self::CONTEXT_QUOTEDPAIR;
                                 break;
                             // Folding White Space
@@ -866,9 +690,9 @@ class EmailValidator
 
                                 $this->warnings[] = self::CFWS_FWS;
 
-                                $contextStack[] = $actualContext;
+                                $this->contentStack[] = $actualContext;
                                 $actualContext  = self::CONTEXT_FWS;
-                                $tokenPrev      = $token;
+                                $this->tokenPrev      = $token;
                                 break;
                             // dtext
                             default:
@@ -920,7 +744,7 @@ class EmailValidator
                         switch ($token) {
                             // Quoted pair
                             case self::STRING_BACKSLASH:
-                                $contextStack[] = $actualContext;
+                                $this->contentStack[] = $actualContext;
                                 $actualContext  = self::CONTEXT_QUOTEDPAIR;
                                 break;
                             // Folding White Space
@@ -946,9 +770,9 @@ class EmailValidator
                                 //   semantically "invisible" and therefore not part of the quoted-string
                                 $this->warnings[] = self::CFWS_FWS;
 
-                                $contextStack[] = $actualContext;
+                                $this->contentStack[] = $actualContext;
                                 $actualContext  = self::CONTEXT_FWS;
-                                $tokenPrev      = $token;
+                                $this->tokenPrev      = $token;
 
                                 $this->parseData[self::COMPONENT_LOCALPART] .= self::STRING_SP;
 
@@ -961,8 +785,8 @@ class EmailValidator
                                 break;
                             // End of quoted string
                             case self::STRING_DQUOTE:
-                                $contextPrev   = $actualContext;
-                                $actualContext = (int) array_pop($contextStack);
+                                $this->contextPrev   = $actualContext;
+                                $actualContext = (int) array_pop($this->contentStack);
 
                                 $this->parseData[self::COMPONENT_LOCALPART] .= $token;
 
@@ -1053,8 +877,8 @@ class EmailValidator
 
                         // @Todo: check whether the character needs to be quoted (escaped) in this context
 
-                        $contextPrev   = $actualContext;
-                        $actualContext = (int) array_pop($contextStack); // End of qpair
+                        $this->contextPrev   = $actualContext;
+                        $actualContext = (int) array_pop($this->contentStack); // End of qpair
 
                         $token         = self::STRING_BACKSLASH . $token;
 
@@ -1102,13 +926,13 @@ class EmailValidator
                             // Nested comment
                             case self::STRING_OPENPARENTHESIS:
                                 // Nested comments are OK
-                                $contextStack[] = $actualContext;
+                                $this->contentStack[] = $actualContext;
                                 $actualContext  = self::CONTEXT_COMMENT;
                                 break;
                             // End of comment
                             case self::STRING_CLOSEPARENTHESIS:
-                                $contextPrev   = $actualContext;
-                                $actualContext = (int) array_pop($contextStack);
+                                $this->contextPrev   = $actualContext;
+                                $actualContext = (int) array_pop($this->contentStack);
 
                                 // http://tools.ietf.org/html/rfc5322#section-3.2.2
                                 //   Runs of FWS, comment, or CFWS that occur between lexical tokens in a
@@ -1137,7 +961,7 @@ class EmailValidator
                                 break;
                             // Quoted pair
                             case self::STRING_BACKSLASH:
-                                $contextStack[] = $actualContext;
+                                $this->contentStack[] = $actualContext;
                                 $actualContext  = self::CONTEXT_QUOTEDPAIR;
                                 break;
                             // Folding White Space
@@ -1154,9 +978,9 @@ class EmailValidator
 
                                 $this->warnings[] = self::CFWS_FWS;
 
-                                $contextStack[] = $actualContext;
+                                $this->contentStack[] = $actualContext;
                                 $actualContext  = self::CONTEXT_FWS;
-                                $tokenPrev      = $token;
+                                $this->tokenPrev      = $token;
                                 break;
                             // ctext
                             default:
@@ -1201,7 +1025,7 @@ class EmailValidator
                         //   field could be composed entirely of white space.
                         //
                         //   obs-FWS         =   1*([CRLF] WSP)
-                        if ($tokenPrev === self::STRING_CR) {
+                        if ($this->tokenPrev === self::STRING_CR) {
                             if ($token === self::STRING_CR) {
                                 // Fatal error
                                 $this->errors[] = self::ERR_FWS_CRLF_X2;
@@ -1228,15 +1052,15 @@ class EmailValidator
                             case self::STRING_HTAB:
                                 break;
                             default:
-                                if ($tokenPrev === self::STRING_CR) {
+                                if ($this->tokenPrev === self::STRING_CR) {
                                     // Fatal error
                                     $this->errors[] = self::ERR_FWS_CRLF_END;
                                     break;
                                 }
                                 $this->crlf_count = 0;
 
-                                $contextPrev   = $actualContext;
-                                $actualContext = (int) array_pop($contextStack);    // End of FWS
+                                $this->contextPrev   = $actualContext;
+                                $actualContext = (int) array_pop($this->contentStack);    // End of FWS
 
                                 // http://tools.ietf.org/html/rfc5322#section-3.2.2
                                 //   Runs of FWS, comment, or CFWS that occur between lexical tokens in a
@@ -1266,7 +1090,7 @@ class EmailValidator
                                 --$i;
                         }
 
-                        $tokenPrev = $token;
+                        $this->tokenPrev = $token;
                         break;
                     //-------------------------------------------------------------
                     // A context we aren't expecting
@@ -1359,6 +1183,198 @@ class EmailValidator
         return $status < self::THRESHOLD;
     }
 
+    protected function checkTokenLocalPart($token, $context, $i)
+    {
+        $actualContext = $context;
+        switch ($token) {
+            case self::STRING_OPENPARENTHESIS:
+                if ($this->elementLength === 0) {
+                    // Comments are OK at the beginning of an element
+                    $this->warnings[] = $this->elementCount === 0 ? self::CFWS_COMMENT : self::DEPREC_COMMENT;
+                } else {
+                    $this->warnings[] = self::CFWS_COMMENT;
+                    // We can't start a comment in the middle of an element, so this better be the end
+                    $this->endOfElement     = true;
+                }
+
+                $this->contextStack[] = $context;
+                $actualContext  = self::CONTEXT_COMMENT;
+                break;
+                // Next dot-atom element
+            case self::STRING_DOT:
+                if ($this->elementLength === 0) {
+                    // Another dot, already? Fatal error
+                    $this->errors[] = $this->elementCount === 0 ? self::ERR_DOT_START : self::ERR_CONSECUTIVEDOTS;
+                } else {
+                    // The entire local-part can be a quoted string for RFC 5321
+                    // If it's just one atom that is quoted then it's an RFC 5322 obsolete form
+                    if ($this->endOfElement) {
+                        $this->warnings[] = self::DEPREC_LOCALPART;
+                    }
+                }
+
+                $this->parseData[self::COMPONENT_LOCALPART] .= $token;
+
+                //if (!isset($this->atomList[self::COMPONENT_LOCALPART][$this->elementCount])) {
+                //    $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] = '';
+                //}
+                $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] = '';
+
+                $this->elementLength = 0;
+                ++$this->elementCount;
+
+                // CFWS & quoted strings are OK again
+                //now we're at the beginning of an element (although they are obsolete forms)
+                $this->endOfElement = false;
+
+                break;
+                // Quoted string
+            case self::STRING_DQUOTE:
+                if ($this->elementLength !== 0) {
+                      // Fatal error
+                      $this->errors[] = self::ERR_EXPECTING_ATEXT;
+                      break;
+                }
+                // The entire local-part can be a quoted string for RFC 5321
+                // If it's just one atom that is quoted then it's an RFC 5322 obsolete form
+                $this->warnings[] = $this->elementCount === 0 ? self::RFC5321_QUOTEDSTRING : self::DEPREC_LOCALPART;
+
+                $this->contextStack[] = $context;
+                $actualContext  = self::CONTEXT_QUOTEDSTRING;
+
+                $this->parseData[self::COMPONENT_LOCALPART] .= $token;
+
+                if (!isset($this->atomList[self::COMPONENT_LOCALPART][$this->elementCount])) {
+                    $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] = '';
+                }
+
+                $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] .= $token;
+
+                ++$this->elementLength;
+
+                // Quoted string must be the entire element
+                $this->endOfElement   = true;
+                break;
+                // Folding White Space
+            case self::STRING_CR:
+            case self::STRING_SP:
+            case self::STRING_HTAB:
+                $rawLength = strlen($this->value);
+                if (($token === self::STRING_CR) && ((++$i === $rawLength) || ($this->value[$i] !== self::STRING_LF))) {
+                    // Fatal error
+                    $this->errors[] = self::ERR_CR_NO_LF;
+                    break;
+                }
+
+                if ($this->elementLength === 0) {
+                    $this->warnings[] = $this->elementCount === 0 ? self::CFWS_FWS : self::DEPREC_FWS;
+                } else {
+                    // We can't start FWS in the middle of an element, so this better be the end
+                    $this->endOfElement = true;
+                }
+
+                $this->contextStack[] = $context;
+                $actualContext  = self::CONTEXT_FWS;
+                $this->tokenPrev      = $token;
+
+                break;
+                // @
+            case self::STRING_AT:
+                if ($this->parseData[self::COMPONENT_LOCALPART] === '') {
+                    // Fatal error
+                    $this->errors[] = self::ERR_NOLOCALPART;
+                } elseif ($this->elementLength === 0) {
+                    // Fatal error
+                    $this->errors[] = self::ERR_DOT_END;
+                } elseif (strlen($this->parseData[self::COMPONENT_LOCALPART]) > 64) {
+                    // http://tools.ietf.org/html/rfc5321#section-4.5.3.1.1
+                    //   The maximum total length of a user name or other local-part is 64
+                    //   octets.
+                    $this->warnings[] = self::RFC5322_LOCAL_TOOLONG;
+                } elseif (
+                  ($this->contextPrev === self::CONTEXT_COMMENT) || ($this->contextPrev === self::CONTEXT_FWS)
+                ) {
+                    // http://tools.ietf.org/html/rfc5322#section-3.4.1
+                    //   Comments and folding white space
+                    //   SHOULD NOT be used around the "@" in the addr-spec.
+                    //
+                    // http://tools.ietf.org/html/rfc2119
+                    // 4. SHOULD NOT   This phrase, or the phrase "NOT RECOMMENDED" mean that
+                    //    there may exist valid reasons in particular circumstances when the
+                    //    particular behavior is acceptable or even useful, but the full
+                    //    implications should be understood and the case carefully weighed
+                    //    before implementing any behavior described with this label.
+                    $this->warnings[] = self::DEPREC_CFWS_NEAR_AT;
+                }
+
+                // Clear everything down for the domain parsing
+                // Where we are
+                $actualContext = self::COMPONENT_DOMAIN;
+                // Where we have been
+                $this->contextStack  = array($actualContext);
+
+                $this->elementCount  = 0;
+                $this->elementLength = 0;
+
+                // CFWS can only appear at the end of the element
+                $this->endOfElement = false;
+
+                break;
+                // atext
+            default:
+                // http://tools.ietf.org/html/rfc5322#section-3.2.3
+                //    atext           =   ALPHA / DIGIT /    ; Printable US-ASCII
+                //                        "!" / "#" /        ;  characters not including
+                //                        "$" / "%" /        ;  specials.  Used for atoms.
+                //                        "&" / "'" /
+                //                        "*" / "+" /
+                //                        "-" / "/" /
+                //                        "=" / "?" /
+                //                        "^" / "_" /
+                //                        "`" / "{" /
+                //                        "|" / "}" /
+                //                        "~"
+                if ($this->endOfElement) {
+                    // We have encountered atext where it is no longer valid
+                    switch ($this->contextPrev) {
+                        case self::CONTEXT_COMMENT:
+                        case self::CONTEXT_FWS:
+                            $this->errors[] = self::ERR_ATEXT_AFTER_CFWS;
+                            break;
+                        case self::CONTEXT_QUOTEDSTRING:
+                            $this->errors[] = self::ERR_ATEXT_AFTER_QS;
+                            break;
+                        default:
+                            throw new \Exception(
+                                "More atext found where none is allowed, but unrecognised prior context:
+                                $this->contextPrev"
+                            );
+                    }
+                } else {
+                    $ord = ord($token);
+                    if ($ord < 33 || $ord > 126 || $ord === 10 || in_array($token, $this->specialCharacters)) {
+                        // Fatal error
+                        $this->errors[]  = self::ERR_EXPECTING_ATEXT;
+                    }
+                    $this->contextPrev = $context;
+
+                    $this->parseData[self::COMPONENT_LOCALPART] .= $token;
+
+                    if (!isset($this->atomList[self::COMPONENT_LOCALPART][$this->elementCount])) {
+                        $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] = '';
+                    }
+                    $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] .= $token;
+
+                    ++$this->elementLength;
+                }
+        }
+        return $actualContext;
+    }
+
+    /**
+     * checkDNS
+     *
+     */
     protected function checkDNS()
     {
         $checked = false;
@@ -1405,8 +1421,8 @@ class EmailValidator
 
             $result = @dns_get_record($this->parseData[self::COMPONENT_DOMAIN], DNS_A + DNS_CNAME);
             if (count($result) === 0) {
-              // No usable records for the domain can be found
-              $this->warnings[] = self::DNSWARN_NO_RECORD;
+                // No usable records for the domain can be found
+                $this->warnings[] = self::DNSWARN_NO_RECORD;
             }
             $checked = false;
         }
