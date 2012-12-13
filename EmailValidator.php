@@ -1,5 +1,7 @@
 <?php
 
+namespace EmailValidator;
+
 class EmailValidator
 {
     const VALID_CATEGORY = 1;
@@ -165,12 +167,24 @@ class EmailValidator
     protected $tokenPrev;
     protected $endOfElement = false;
 
+    // Hyphen cannot occur at the end of a subdomain
+    protected $hyphenFlag = false;
+
 
     public function __construct()
     {
 
     }
 
+    /**
+     * isValid
+     *
+     * @param string  $value    an email
+     * @param boolean $checkDNS false
+     * @param boolean $strict   false
+     *
+     * @return boolean
+     */
     public function isValid($value, $checkDNS = false, $strict = false)
     {
         $this->errors   = array();
@@ -244,8 +258,6 @@ class EmailValidator
             $token     =
             $this->tokenPrev = '';
 
-            // Hyphen cannot occur at the end of a subdomain
-            $hyphenFlag = false;
 
             // CFWS can only appear at the end of the element
             //$endOfElement = false;
@@ -277,7 +289,7 @@ class EmailValidator
                         //   word            =   atom / quoted-string
                         //
                         //   atom            =   [CFWS] 1*atext [CFWS]
-                        $actualContext = $this->checkTokenLocalPart($token, $actualContext, &$i);
+                        $actualContext = $this->checkTokenLocalPart($token, $actualContext, $i);
                         break;
                     //-------------------------------------------------------------
                     // Domain
@@ -323,191 +335,7 @@ class EmailValidator
                         // have reached is this: "addressing information" must comply with
                         // RFC 5321 (and in turn RFC 1035), anything that is "semantically
                         // invisible" must comply only with RFC 5322.
-                        switch ($token) {
-                            // Comment
-                            case self::STRING_OPENPARENTHESIS:
-                                if ($this->elementLength === 0) {
-                                    // Comments at the start of the domain are deprecated in the text
-                                    // Comments at the start of a subdomain are obs-domain
-                                    // (http://tools.ietf.org/html/rfc5322#section-3.4.1)
-                                    $this->warnings[] =
-                                        $this->elementCount === 0 ? self::DEPREC_CFWS_NEAR_AT : self::DEPREC_COMMENT;
-                                } else {
-                                    $this->warnings[] = self::CFWS_COMMENT;
-
-                                    // We can't start a comment in the middle of an element, so this better be the end
-                                    $this->endOfElement = true;
-                                }
-
-                                $this->contentStack[] = $actualContext;
-                                $actualContext  = self::CONTEXT_COMMENT;
-                                break;
-                            // Next dot-atom element
-                            case self::STRING_DOT:
-                                if ($this->elementLength === 0) {
-                                    // Another dot, already?
-                                    // Fatal error
-                                    $this->errors[] =
-                                        $this->elementCount === 0 ? self::ERR_DOT_START : self::ERR_CONSECUTIVEDOTS;
-                                } elseif ($hyphenFlag) {
-                                    // Previous subdomain ended in a hyphen
-                                    // Fatal error
-                                    $this->errors[] = self::ERR_DOMAINHYPHENEND;
-                                } else {
-                                    // Nowhere in RFC 5321 does it say explicitly that the
-                                    // domain part of a Mailbox must be a valid domain according
-                                    // to the DNS standards set out in RFC 1035, but this *is*
-                                    // implied in several places. For instance, wherever the idea
-                                    // of host routing is discussed the RFC says that the domain
-                                    // must be looked up in the DNS. This would be nonsense unless
-                                    // the domain was designed to be a valid DNS domain. Hence we
-                                    // must conclude that the RFC 1035 restriction on label length
-                                    // also applies to RFC 5321 domains.
-                                    //
-                                    // http://tools.ietf.org/html/rfc1035#section-2.3.4
-                                    // labels          63 octets or less
-                                    if ($this->elementLength > 63) {
-                                        $this->warnings[] = self::RFC5322_LABEL_TOOLONG;
-                                    }
-                                }
-                                $this->parseData[self::COMPONENT_DOMAIN] .= $token;
-
-                                if (!isset($this->atomList[self::COMPONENT_DOMAIN][$this->elementCount])) {
-                                    $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] = '';
-                                }
-                                $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] = '';
-
-                                $this->elementLength = 0;
-                                ++$this->elementCount;
-
-                                // CFWS is OK again now we're at the beginning of an element
-                                //(although it may be obsolete CFWS)
-                                $this->endOfElement = false;
-
-                                break;
-                            // Domain literal
-                            case self::STRING_OPENSQBRACKET:
-                                if ($this->parseData[self::COMPONENT_DOMAIN] === '') {
-                                    ++$this->elementLength;
-                                    $this->contentStack[] = $actualContext;
-                                    $actualContext  = self::COMPONENT_LITERAL;
-
-                                    $this->parseData[self::COMPONENT_LITERAL] = '';
-                                    $this->parseData[self::COMPONENT_DOMAIN] .= $token;
-
-                                    if (!isset($this->atomList[self::COMPONENT_DOMAIN][$this->elementCount])) {
-                                        $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] = '';
-                                    }
-                                    $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] .= $token;
-
-                                    // Domain literal must be the only component
-                                    $this->endOfElement = true;
-                                } else {
-                                    // Fatal error
-                                    $this->errors[] = self::ERR_EXPECTING_ATEXT;
-                                }
-
-                                break;
-                            // Folding White Space
-                            case self::STRING_CR:
-                            case self::STRING_SP:
-                            case self::STRING_HTAB:
-                                if (($token === self::STRING_CR) &&
-                                    ((++$i === $rawLength) || ($value[$i] !== self::STRING_LF))
-                                ) {
-                                    // Fatal error
-                                    $this->errors[] = self::ERR_CR_NO_LF;
-                                    break;
-                                }
-
-                                if ($this->elementLength === 0) {
-                                    $this->warnings[] =
-                                        $this->elementCount === 0 ? self::DEPREC_CFWS_NEAR_AT : self::DEPREC_FWS;
-                                } else {
-                                    $this->warnings[] = self::CFWS_FWS;
-
-                                    // We can't start FWS in the middle of an element, so this better be the end
-                                    $this->endOfElement = true;
-                                }
-
-                                $this->contentStack[] = $actualContext;
-                                $actualContext  = self::CONTEXT_FWS;
-                                $this->tokenPrev      = $token;
-                                break;
-                            // atext
-                            default:
-                                // RFC 5322 allows any atext...
-                                // http://tools.ietf.org/html/rfc5322#section-3.2.3
-                                //    atext           =   ALPHA / DIGIT /    ; Printable US-ASCII
-                                //                        "!" / "#" /        ;  characters not including
-                                //                        "$" / "%" /        ;  specials.  Used for atoms.
-                                //                        "&" / "'" /
-                                //                        "*" / "+" /
-                                //                        "-" / "/" /
-                                //                        "=" / "?" /
-                                //                        "^" / "_" /
-                                //                        "`" / "{" /
-                                //                        "|" / "}" /
-                                //                        "~"
-
-                                // But RFC 5321 only allows letter-digit-hyphen
-                                //  to comply with DNS rules (RFCs 1034 & 1123)
-                                // http://tools.ietf.org/html/rfc5321#section-4.1.2
-                                //   sub-domain     = Let-dig [Ldh-str]
-                                //
-                                //   Let-dig        = ALPHA / DIGIT
-                                //
-                                //   Ldh-str        = *( ALPHA / DIGIT / "-" ) Let-dig
-                                //
-                                if ($this->endOfElement) {
-                                    // We have encountered atext where it is no longer valid
-                                    switch ($this->contextPrev) {
-                                        case self::CONTEXT_COMMENT:
-                                        case self::CONTEXT_FWS:
-                                            $this->errors[] = self::ERR_ATEXT_AFTER_CFWS;
-                                            break;
-                                        case self::COMPONENT_LITERAL:
-                                            $this->errors[] = self::ERR_ATEXT_AFTER_DOMLIT;
-                                            break;
-                                        default:
-                                            throw new \Exception(
-                                                "More atext found where none is allowed, but unrecognised prior context:
-                                                $this->contextPrev"
-                                            );
-                                    }
-                                }
-
-                                // Assume this token isn't a hyphen unless we discover it is
-                                $hyphenFlag = false;
-
-                                $ord = ord($token);
-                                if ($ord < 33 || $ord > 126 || in_array($token, $this->specialCharacters)) {
-                                    // Fatal error
-                                    $this->errors[] = self::ERR_EXPECTING_ATEXT;
-                                } elseif ($token === self::STRING_HYPHEN) {
-                                    if ($this->elementLength === 0) {
-                                        // Hyphens can't be at the beginning of a subdomain
-                                        // Fatal error
-                                        $this->errors[] = self::ERR_DOMAINHYPHENSTART;
-                                    }
-
-                                    $hyphenFlag = true;
-                                } elseif (!(($ord > 47 && $ord < 58) || ($ord > 64 && $ord < 91) ||
-                                    ($ord > 96 && $ord < 123))
-                                ) {
-                                    // Not an RFC 5321 subdomain, but still OK by RFC 5322
-                                    $this->warnings[] = self::RFC5322_DOMAIN;
-                                }
-
-                                $this->parseData[self::COMPONENT_DOMAIN] .= $token;
-
-                                if (!isset($this->atomList[self::COMPONENT_DOMAIN][$this->elementCount])) {
-                                    $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] = '';
-                                }
-                                $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] .= $token;
-
-                                ++$this->elementLength;
-                        }
+                        $actualContext = $this->checkTokenDomainComponent($token, $actualContext, $i);
 
                         break;
                     //-------------------------------------------------------------
@@ -1128,7 +956,7 @@ class EmailValidator
                 } elseif ($this->elementLength === 0) {
                     // Fatal error
                     $this->errors[] = self::ERR_DOT_END;
-                } elseif ($hyphenFlag) {
+                } elseif ($this->hyphenFlag) {
                     // Fatal error
                     $this->errors[] = self::ERR_DOMAINHYPHENEND;
                 } elseif (strlen($this->parseData[self::COMPONENT_DOMAIN]) > 255) {
@@ -1183,7 +1011,15 @@ class EmailValidator
         return $status < self::THRESHOLD;
     }
 
-    protected function checkTokenLocalPart($token, $context, $i)
+    /**
+     * checkTokenLocalPart
+     * check if given token is a valid local part of the email
+     *
+     * @param string $token
+     * @param int    $context
+     * @param int    $i
+     */
+    protected function checkTokenLocalPart($token, $context, &$i)
     {
         $actualContext = $context;
         switch ($token) {
@@ -1367,6 +1203,197 @@ class EmailValidator
 
                     ++$this->elementLength;
                 }
+        }
+        return $actualContext;
+    }
+
+    protected function checkTokenDomainComponent($token, $context, &$i)
+    {
+        $actualContext = $context;
+        switch ($token) {
+            // Comment
+            case self::STRING_OPENPARENTHESIS:
+                if ($this->elementLength === 0) {
+                    // Comments at the start of the domain are deprecated in the text
+                    // Comments at the start of a subdomain are obs-domain
+                    // (http://tools.ietf.org/html/rfc5322#section-3.4.1)
+                    $this->warnings[] =
+                        $this->elementCount === 0 ? self::DEPREC_CFWS_NEAR_AT : self::DEPREC_COMMENT;
+                } else {
+                    $this->warnings[] = self::CFWS_COMMENT;
+
+                    // We can't start a comment in the middle of an element, so this better be the end
+                    $this->endOfElement = true;
+                }
+
+                $this->contentStack[] = $context;
+                $actualContext  = self::CONTEXT_COMMENT;
+                break;
+            // Next dot-atom element
+            case self::STRING_DOT:
+                if ($this->elementLength === 0) {
+                    // Another dot, already?
+                    // Fatal error
+                    $this->errors[] =
+                        $this->elementCount === 0 ? self::ERR_DOT_START : self::ERR_CONSECUTIVEDOTS;
+                } elseif ($this->hyphenFlag) {
+                    // Previous subdomain ended in a hyphen
+                    // Fatal error
+                    $this->errors[] = self::ERR_DOMAINHYPHENEND;
+                } else {
+                    // Nowhere in RFC 5321 does it say explicitly that the
+                    // domain part of a Mailbox must be a valid domain according
+                    // to the DNS standards set out in RFC 1035, but this *is*
+                    // implied in several places. For instance, wherever the idea
+                    // of host routing is discussed the RFC says that the domain
+                    // must be looked up in the DNS. This would be nonsense unless
+                    // the domain was designed to be a valid DNS domain. Hence we
+                    // must conclude that the RFC 1035 restriction on label length
+                    // also applies to RFC 5321 domains.
+                    //
+                    // http://tools.ietf.org/html/rfc1035#section-2.3.4
+                    // labels          63 octets or less
+                    if ($this->elementLength > 63) {
+                        $this->warnings[] = self::RFC5322_LABEL_TOOLONG;
+                    }
+                }
+                $this->parseData[self::COMPONENT_DOMAIN] .= $token;
+
+                //if (!isset($this->atomList[self::COMPONENT_DOMAIN][$this->elementCount])) {
+                //    $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] = '';
+                //}
+                $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] = '';
+
+                $this->elementLength = 0;
+                ++$this->elementCount;
+
+                // CFWS is OK again now we're at the beginning of an element
+                //(although it may be obsolete CFWS)
+                $this->endOfElement = false;
+
+                break;
+            // Domain literal
+            case self::STRING_OPENSQBRACKET:
+                if ($this->parseData[self::COMPONENT_DOMAIN] !== '') {
+                    $this->errors[] = self::ERR_EXPECTING_ATEXT;
+                    break;
+                }
+
+                ++$this->elementLength;
+                $this->contentStack[] = $context;
+                $actualContext  = self::COMPONENT_LITERAL;
+
+                $this->parseData[self::COMPONENT_LITERAL] = '';
+                $this->parseData[self::COMPONENT_DOMAIN] .= $token;
+
+                //if (!isset($this->atomList[self::COMPONENT_DOMAIN][$this->elementCount])) {
+                //    $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] = '';
+                //}
+                $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] .= $token;
+
+                // Domain literal must be the only component
+                $this->endOfElement = true;
+                break;
+            // Folding White Space
+            case self::STRING_CR:
+            case self::STRING_SP:
+            case self::STRING_HTAB:
+                $rawLength = strlen($this->value);
+                if (($token === self::STRING_CR) &&
+                    ((++$i === $rawLength) || ($this->value[$i] !== self::STRING_LF))
+                ) {
+                    // Fatal error
+                    $this->errors[] = self::ERR_CR_NO_LF;
+                    break;
+                }
+
+                if ($this->elementLength === 0) {
+                    $this->warnings[] =
+                        $this->elementCount === 0 ? self::DEPREC_CFWS_NEAR_AT : self::DEPREC_FWS;
+                } else {
+                    $this->warnings[] = self::CFWS_FWS;
+
+                    // We can't start FWS in the middle of an element, so this better be the end
+                    $this->endOfElement = true;
+                }
+
+                $this->contentStack[] = $context;
+                $actualContext  = self::CONTEXT_FWS;
+                $this->tokenPrev      = $token;
+                break;
+            // atext
+            default:
+                // RFC 5322 allows any atext...
+                // http://tools.ietf.org/html/rfc5322#section-3.2.3
+                //    atext           =   ALPHA / DIGIT /    ; Printable US-ASCII
+                //                        "!" / "#" /        ;  characters not including
+                //                        "$" / "%" /        ;  specials.  Used for atoms.
+                //                        "&" / "'" /
+                //                        "*" / "+" /
+                //                        "-" / "/" /
+                //                        "=" / "?" /
+                //                        "^" / "_" /
+                //                        "`" / "{" /
+                //                        "|" / "}" /
+                //                        "~"
+
+                // But RFC 5321 only allows letter-digit-hyphen
+                //  to comply with DNS rules (RFCs 1034 & 1123)
+                // http://tools.ietf.org/html/rfc5321#section-4.1.2
+                //   sub-domain     = Let-dig [Ldh-str]
+                //
+                //   Let-dig        = ALPHA / DIGIT
+                //
+                //   Ldh-str        = *( ALPHA / DIGIT / "-" ) Let-dig
+                //
+                if ($this->endOfElement) {
+                    // We have encountered atext where it is no longer valid
+                    switch ($this->contextPrev) {
+                        case self::CONTEXT_COMMENT:
+                        case self::CONTEXT_FWS:
+                            $this->errors[] = self::ERR_ATEXT_AFTER_CFWS;
+                            break;
+                        case self::COMPONENT_LITERAL:
+                            $this->errors[] = self::ERR_ATEXT_AFTER_DOMLIT;
+                            break;
+                        default:
+                            throw new \Exception(
+                                "More atext found where none is allowed, but unrecognised prior context:
+                                $this->contextPrev"
+                            );
+                    }
+                }
+
+                // Assume this token isn't a hyphen unless we discover it is
+                $this->hyphenFlag = false;
+
+                $ord = ord($token);
+                if ($ord < 33 || $ord > 126 || in_array($token, $this->specialCharacters)) {
+                    // Fatal error
+                    $this->errors[] = self::ERR_EXPECTING_ATEXT;
+                } elseif ($token === self::STRING_HYPHEN) {
+                    if ($this->elementLength === 0) {
+                        // Hyphens can't be at the beginning of a subdomain
+                        // Fatal error
+                        $this->errors[] = self::ERR_DOMAINHYPHENSTART;
+                    }
+
+                    $this->hyphenFlag = true;
+                } elseif (!(($ord > 47 && $ord < 58) || ($ord > 64 && $ord < 91) ||
+                    ($ord > 96 && $ord < 123))
+                ) {
+                    // Not an RFC 5321 subdomain, but still OK by RFC 5322
+                    $this->warnings[] = self::RFC5322_DOMAIN;
+                }
+
+                $this->parseData[self::COMPONENT_DOMAIN] .= $token;
+
+                if (!isset($this->atomList[self::COMPONENT_DOMAIN][$this->elementCount])) {
+                    $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] = '';
+                }
+                $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] .= $token;
+
+                ++$this->elementLength;
         }
         return $actualContext;
     }

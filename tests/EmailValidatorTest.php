@@ -1,14 +1,17 @@
 <?php
 
+namespace tests;
+
 require_once 'EmailValidator.php';
 
-class EmailValidatorTest extends PHPUnit_Framework_TestCase
+
+class EmailValidatorTest extends \PHPUnit_Framework_TestCase
 {
     protected $validator;
 
     protected function setUp()
     {
-        $this->validator = new EmailValidator();
+        $this->validator = new \EmailValidator\EmailValidator();
     }
 
     protected function tearDown()
@@ -111,28 +114,28 @@ class EmailValidatorTest extends PHPUnit_Framework_TestCase
     public function getInvalidEmailsWithErrors()
     {
         return array(
-            array(array(EmailValidator::ERR_NOLOCALPART), '@example.co.uk'),
-            array(array(EmailValidator::ERR_NODOMAIN), 'example@'),
-            array(array(EmailValidator::ERR_DOMAINHYPHENEND), 'example@example-.co.uk'),
-            array(array(EmailValidator::ERR_DOMAINHYPHENEND), 'example@example-'),
-            array(array(EmailValidator::ERR_CONSECUTIVEATS), 'example@@example.co.uk'),
-            array(array(EmailValidator::ERR_CONSECUTIVEDOTS), 'example..example@example.co.uk'),
-            array(array(EmailValidator::ERR_CONSECUTIVEDOTS), 'example@example..co.uk'),
-            array(array(EmailValidator::ERR_EXPECTING_ATEXT), '<fabien_potencier>@example.fr'),
-            array(array(EmailValidator::ERR_DOT_START), '.example@localhost'),
-            array(array(EmailValidator::ERR_DOT_START), 'example@.localhost'),
-            array(array(EmailValidator::ERR_DOT_END), 'example@localhost.'),
-            array(array(EmailValidator::ERR_DOT_END), 'example.@example.co.uk'),
-            array(array(EmailValidator::ERR_UNCLOSEDCOMMENT), '(example@localhost'),
-            array(array(EmailValidator::ERR_UNCLOSEDQUOTEDSTR), '"example@localhost'),
-            array(array(EmailValidator::ERR_EXPECTING_ATEXT), 'exa"mple@localhost'),
-            array(array(EmailValidator::ERR_EXPECTING_ATEXT), "exampl\ne@example.co.uk"),
-            array(array(EmailValidator::ERR_EXPECTING_DTEXT), "example@[[]"),
-            array(array(EmailValidator::ERR_ATEXT_AFTER_CFWS), "exampl\te@example.co.uk"),
-            array(array(EmailValidator::ERR_CR_NO_LF), "example@exa\rmple.co.uk"),
-            array(array(EmailValidator::ERR_CR_NO_LF), "example@[\r]"),
-            array(array(EmailValidator::ERR_CR_NO_LF), "exam\rple@example.co.uk"),
-            array(array(EmailValidator::ERR_CR_NO_LF), "\"\r\"@localhost"),
+            array(array(\EmailValidator\EmailValidator::ERR_NOLOCALPART), '@example.co.uk'),
+            array(array(\EmailValidator\EmailValidator::ERR_NODOMAIN), 'example@'),
+            array(array(\EmailValidator\EmailValidator::ERR_DOMAINHYPHENEND), 'example@example-.co.uk'),
+            array(array(\EmailValidator\EmailValidator::ERR_DOMAINHYPHENEND), 'example@example-'),
+            array(array(\EmailValidator\EmailValidator::ERR_CONSECUTIVEATS), 'example@@example.co.uk'),
+            array(array(\EmailValidator\EmailValidator::ERR_CONSECUTIVEDOTS), 'example..example@example.co.uk'),
+            array(array(\EmailValidator\EmailValidator::ERR_CONSECUTIVEDOTS), 'example@example..co.uk'),
+            array(array(\EmailValidator\EmailValidator::ERR_EXPECTING_ATEXT), '<fabien_potencier>@example.fr'),
+            array(array(\EmailValidator\EmailValidator::ERR_DOT_START), '.example@localhost'),
+            array(array(\EmailValidator\EmailValidator::ERR_DOT_START), 'example@.localhost'),
+            array(array(\EmailValidator\EmailValidator::ERR_DOT_END), 'example@localhost.'),
+            array(array(\EmailValidator\EmailValidator::ERR_DOT_END), 'example.@example.co.uk'),
+            array(array(\EmailValidator\EmailValidator::ERR_UNCLOSEDCOMMENT), '(example@localhost'),
+            array(array(\EmailValidator\EmailValidator::ERR_UNCLOSEDQUOTEDSTR), '"example@localhost'),
+            array(array(\EmailValidator\EmailValidator::ERR_EXPECTING_ATEXT), 'exa"mple@localhost'),
+            array(array(\EmailValidator\EmailValidator::ERR_EXPECTING_ATEXT), "exampl\ne@example.co.uk"),
+            array(array(\EmailValidator\EmailValidator::ERR_EXPECTING_DTEXT), "example@[[]"),
+            array(array(\EmailValidator\EmailValidator::ERR_ATEXT_AFTER_CFWS), "exampl\te@example.co.uk"),
+            array(array(\EmailValidator\EmailValidator::ERR_CR_NO_LF), "example@exa\rmple.co.uk"),
+            array(array(\EmailValidator\EmailValidator::ERR_CR_NO_LF), "example@[\r]"),
+            array(array(\EmailValidator\EmailValidator::ERR_CR_NO_LF), "exam\rple@example.co.uk"),
+            array(array(\EmailValidator\EmailValidator::ERR_CR_NO_LF), "\"\r\"@localhost"),
         );
     }
 
@@ -151,164 +154,164 @@ class EmailValidatorTest extends PHPUnit_Framework_TestCase
         return array(
             array(
                 array(
-                    EmailValidator::DEPREC_CFWS_NEAR_AT,
+                    \EmailValidator\EmailValidator::DEPREC_CFWS_NEAR_AT,
                 ),
                 'example @example.co.uk'
             ),
             array(
                 array(
-                    EmailValidator::DEPREC_CFWS_NEAR_AT,
+                    \EmailValidator\EmailValidator::DEPREC_CFWS_NEAR_AT,
                 ),
                 'example@ example.co.uk'
             ),
             array(
                 array(
-                    EmailValidator::CFWS_COMMENT,
+                    \EmailValidator\EmailValidator::CFWS_COMMENT,
                 ),
                 'example@example(example).co.uk'
             ),
             array(
                 array(
-                    EmailValidator::CFWS_COMMENT,
-                    EmailValidator::DEPREC_CFWS_NEAR_AT,
+                    \EmailValidator\EmailValidator::CFWS_COMMENT,
+                    \EmailValidator\EmailValidator::DEPREC_CFWS_NEAR_AT,
                 ),
                 'example(example)@example.co.uk'
             ),
 
             array(
                 array(
-                    EmailValidator::RFC5321_QUOTEDSTRING,
-                    EmailValidator::CFWS_FWS,
+                    \EmailValidator\EmailValidator::RFC5321_QUOTEDSTRING,
+                    \EmailValidator\EmailValidator::CFWS_FWS,
                 ),
                 "\"\t\"@example.co.uk"
             ),
             array(
                 array(
-                    EmailValidator::RFC5321_ADDRESSLITERAL,
-                    EmailValidator::DNSWARN_NO_MX_RECORD,
-                    EmailValidator::DNSWARN_NO_RECORD,
+                    \EmailValidator\EmailValidator::RFC5321_ADDRESSLITERAL,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_MX_RECORD,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_RECORD,
                 ),
                 'example@[127.0.0.1]'
             ),
             array(
                 array(
-                    EmailValidator::RFC5321_ADDRESSLITERAL,
-                    EmailValidator::DNSWARN_NO_MX_RECORD,
-                    EmailValidator::DNSWARN_NO_RECORD,
+                    \EmailValidator\EmailValidator::RFC5321_ADDRESSLITERAL,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_MX_RECORD,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_RECORD,
                 ),
                 'example@[IPv6:2001:0db8:85a3:0000:0000:8a2e:0370:7334]'
             ),
             array(
                 array(
-                    EmailValidator::RFC5321_IPV6DEPRECATED,
-                    EmailValidator::RFC5321_ADDRESSLITERAL,
-                    EmailValidator::DNSWARN_NO_MX_RECORD,
-                    EmailValidator::DNSWARN_NO_RECORD,
+                    \EmailValidator\EmailValidator::RFC5321_IPV6DEPRECATED,
+                    \EmailValidator\EmailValidator::RFC5321_ADDRESSLITERAL,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_MX_RECORD,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_RECORD,
                 ),
                 'example@[IPv6:2001:0db8:85a3:0000:0000:8a2e:0370::]'
             ),
             array(
                 array(
-                    EmailValidator::RFC5322_IPV6_MAXGRPS,
-                    EmailValidator::RFC5321_ADDRESSLITERAL,
-                    EmailValidator::DNSWARN_NO_MX_RECORD,
-                    EmailValidator::DNSWARN_NO_RECORD,
+                    \EmailValidator\EmailValidator::RFC5322_IPV6_MAXGRPS,
+                    \EmailValidator\EmailValidator::RFC5321_ADDRESSLITERAL,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_MX_RECORD,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_RECORD,
                 ),
                 'example@[IPv6:2001:0db8:85a3:0000:0000:8a2e:0370:7334::]'
             ),
             array(
                 array(
-                    EmailValidator::RFC5322_IPV6_2X2XCOLON,
-                    EmailValidator::RFC5321_ADDRESSLITERAL,
-                    EmailValidator::DNSWARN_NO_MX_RECORD,
-                    EmailValidator::DNSWARN_NO_RECORD,
+                    \EmailValidator\EmailValidator::RFC5322_IPV6_2X2XCOLON,
+                    \EmailValidator\EmailValidator::RFC5321_ADDRESSLITERAL,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_MX_RECORD,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_RECORD,
                 ),
                 'example@[IPv6:1::1::1]'
             ),
 
             array(
                 array(
-                    EmailValidator::RFC5322_DOMLIT_OBSDTEXT,
-                    EmailValidator::RFC5322_DOMAINLITERAL,
-                    EmailValidator::DNSWARN_NO_MX_RECORD,
-                    EmailValidator::DNSWARN_NO_RECORD,
+                    \EmailValidator\EmailValidator::RFC5322_DOMLIT_OBSDTEXT,
+                    \EmailValidator\EmailValidator::RFC5322_DOMAINLITERAL,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_MX_RECORD,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_RECORD,
                 ),
                 "example@[\n]"
             ),
             array(
                 array(
-                    EmailValidator::RFC5322_DOMAINLITERAL,
-                    EmailValidator::DNSWARN_NO_MX_RECORD,
-                    EmailValidator::DNSWARN_NO_RECORD,
+                    \EmailValidator\EmailValidator::RFC5322_DOMAINLITERAL,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_MX_RECORD,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_RECORD,
                 ),
                 'example@[::1]'
             ),
             array(
                 array(
-                    EmailValidator::RFC5322_DOMAINLITERAL,
-                    EmailValidator::DNSWARN_NO_MX_RECORD,
-                    EmailValidator::DNSWARN_NO_RECORD,
+                    \EmailValidator\EmailValidator::RFC5322_DOMAINLITERAL,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_MX_RECORD,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_RECORD,
                 ),
                 'example@[::123.45.67.178]'
             ),
             array(
                 array(
-                    EmailValidator::RFC5322_IPV6_GRPCOUNT,
-                    EmailValidator::RFC5322_IPV6_COLONSTRT,
-                    EmailValidator::DNSWARN_NO_MX_RECORD,
-                    EmailValidator::DNSWARN_NO_RECORD,
+                    \EmailValidator\EmailValidator::RFC5322_IPV6_GRPCOUNT,
+                    \EmailValidator\EmailValidator::RFC5322_IPV6_COLONSTRT,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_MX_RECORD,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_RECORD,
                 ),
                 'example@[IPv6::2001:0db8:85a3:0000:0000:8a2e:0370:7334]'
             ),
             array(
                 array(
-                    EmailValidator::RFC5322_IPV6_BADCHAR,
-                    EmailValidator::DNSWARN_NO_MX_RECORD,
-                    EmailValidator::DNSWARN_NO_RECORD,
+                    \EmailValidator\EmailValidator::RFC5322_IPV6_BADCHAR,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_MX_RECORD,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_RECORD,
                 ),
                 'example@[IPv6:z001:0db8:85a3:0000:0000:8a2e:0370:7334]'
             ),
             array(
                 array(
-                    EmailValidator::RFC5322_IPV6_COLONEND,
-                    EmailValidator::DNSWARN_NO_MX_RECORD,
-                    EmailValidator::DNSWARN_NO_RECORD,
+                    \EmailValidator\EmailValidator::RFC5322_IPV6_COLONEND,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_MX_RECORD,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_RECORD,
                 ),
                 'example@[IPv6:2001:0db8:85a3:0000:0000:8a2e:0370:]'
             ),
             array(
                 array(
-                    EmailValidator::RFC5321_QUOTEDSTRING,
+                    \EmailValidator\EmailValidator::RFC5321_QUOTEDSTRING,
                 ),
                 '"example"@example.co.uk'
             ),
             array(
                 array(
-                    EmailValidator::RFC5322_LOCAL_TOOLONG,
+                    \EmailValidator\EmailValidator::RFC5322_LOCAL_TOOLONG,
                 ),
                 'too_long_localpart_too_long_localpart_too_long_localpart_too_long_localpart@example.co.uk'
             ),
             array(
                 array(
-                    EmailValidator::RFC5322_LABEL_TOOLONG,
-                    EmailValidator::DNSWARN_NO_MX_RECORD,
-                    EmailValidator::DNSWARN_NO_RECORD,
+                    \EmailValidator\EmailValidator::RFC5322_LABEL_TOOLONG,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_MX_RECORD,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_RECORD,
                 ),
                 'example@toolonglocalparttoolonglocalparttoolonglocalparttoolonglocalpart.co.uk'
             ),
             array(
                 array(
-                    EmailValidator::RFC5322_DOMAIN_TOOLONG,
-                    EmailValidator::DNSWARN_NO_MX_RECORD,
-                    EmailValidator::DNSWARN_NO_RECORD,
+                    \EmailValidator\EmailValidator::RFC5322_DOMAIN_TOOLONG,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_MX_RECORD,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_RECORD,
                 ),
                 'example@toolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalpart'
             ),
             array(
                 array(
-                    EmailValidator::RFC5322_TOOLONG,
-                    EmailValidator::DNSWARN_NO_MX_RECORD,
-                    EmailValidator::DNSWARN_NO_RECORD,
+                    \EmailValidator\EmailValidator::RFC5322_TOOLONG,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_MX_RECORD,
+                    \EmailValidator\EmailValidator::DNSWARN_NO_RECORD,
                 ),
                 'example@toolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalpar'
             ),
