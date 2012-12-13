@@ -237,9 +237,9 @@ class EmailValidator
      *  @link(http://tools.ietf.org/html/rfc3696) (guidance only)
      *
      * @param string  $value       The email address to check
-     * @param Boolean $checkDNS    If true then a DNS check for MX records will be made
+     * @param boolean $checkDNS    If true then a DNS check for MX records will be made
      *
-     * @return mixed
+     * @return boolean
      */
     public function isEmail($value, $checkDNS = false)
     {
@@ -256,7 +256,6 @@ class EmailValidator
             $this->contentStack  = array($actualContext);     // Where we have been
 
             $token     = '';
-
 
             // CFWS can only appear at the end of the element
             //$endOfElement = false;
@@ -422,72 +421,7 @@ class EmailValidator
                         //   field could be composed entirely of white space.
                         //
                         //   obs-FWS         =   1*([CRLF] WSP)
-                        if ($this->tokenPrev === self::STRING_CR) {
-                            if ($token === self::STRING_CR) {
-                                // Fatal error
-                                $this->errors[] = self::ERR_FWS_CRLF_X2;
-                                break;
-                            }
-
-                            if (++$this->crlf_count > 1) {
-                                // Multiple folds = obsolete FWS
-                                $this->warnings[] = self::DEPREC_FWS;
-                            } else {
-                                $this->crlf_count = 1;
-                            }
-                        }
-
-                        switch ($token) {
-                            case self::STRING_CR:
-                                if ((++$i === $rawLength) || ($value[$i] !== self::STRING_LF)) {
-                                    // Fatal error
-                                    $this->errors[] = self::ERR_CR_NO_LF;
-                                }
-
-                                break;
-                            case self::STRING_SP:
-                            case self::STRING_HTAB:
-                                break;
-                            default:
-                                if ($this->tokenPrev === self::STRING_CR) {
-                                    // Fatal error
-                                    $this->errors[] = self::ERR_FWS_CRLF_END;
-                                    break;
-                                }
-                                $this->crlf_count = 0;
-
-                                $this->contextPrev   = $actualContext;
-                                $actualContext = (int) array_pop($this->contentStack);    // End of FWS
-
-                                // http://tools.ietf.org/html/rfc5322#section-3.2.2
-                                //   Runs of FWS, comment, or CFWS that occur between lexical tokens in a
-                                //   structured header field are semantically interpreted as a single
-                                //   space character.
-                                //
-                                // is_email() author's note: This *cannot* mean that we must add a
-                                // space to the address wherever CFWS appears. This would result in
-                                // any addr-spec that had CFWS outside a quoted string being invalid
-                                // for RFC 5321.
-                                /*
-                                // @todo
-                                  if (($actualContext === self::COMPONENT_LOCALPART) ||
-                                      ($actualContext === self::COMPONENT_DOMAIN)
-                                  ) {
-                                    $this->parseData[$actualContext] .= self::STRING_SP;
-
-                                    if (!isset($this->atomList[$actualContext][$this->elementCount])) {
-                                        $this->atomList[$actualContext][$this->elementCount] = '';
-                                    }
-                                    $this->atomList[$actualContext][$element_count] .= self::STRING_SP;
-
-                                    ++$this->elementLength;
-                                }
-                                */
-                                // Look at this token again in the parent context
-                                --$i;
-                        }
-
-                        $this->tokenPrev = $token;
+                        $actualContext = $this->checkTokenContextFWS($token, $actualContext, $i);
                         break;
                     //-------------------------------------------------------------
                     // A context we aren't expecting
@@ -1371,6 +1305,15 @@ class EmailValidator
         return $actualContext;
     }
 
+    /**
+     * checkTokenContextComment
+     *
+     * @param string  $token
+     * @param int     $actualContext
+     * @param int     $i
+     *
+     * @return int actualContext
+     */
     protected function checkTokenContextComment($token, $actualContext, &$i)
     {
         $context = $actualContext;
@@ -1457,6 +1400,90 @@ class EmailValidator
                     $this->warnings[] = self::DEPREC_CTEXT;
                 }
         }
+        return $actualContext;
+    }
+
+    /**
+     * checkTokenContextFWS
+     *
+     * @param string  $token
+     * @param int     $actualContext
+     * @param int     $i
+     *
+     * @return int actualContext
+     */
+    protected function checkTokenContextFWS($token, $actualContext, &$i)
+    {
+        $context = $actualContext;
+
+        if ($this->tokenPrev === self::STRING_CR) {
+            if ($token === self::STRING_CR) {
+                // Fatal error
+                $this->errors[] = self::ERR_FWS_CRLF_X2;
+                break;
+            }
+
+            if (++$this->crlf_count > 1) {
+                // Multiple folds = obsolete FWS
+                $this->warnings[] = self::DEPREC_FWS;
+            } else {
+                $this->crlf_count = 1;
+            }
+        }
+
+        switch ($token) {
+            case self::STRING_CR:
+                $rawLength = strlen($this->value);
+                if ((++$i === $rawLength) || ($this->value[$i] !== self::STRING_LF)) {
+                    // Fatal error
+                    $this->errors[] = self::ERR_CR_NO_LF;
+                }
+
+                break;
+            case self::STRING_SP:
+            case self::STRING_HTAB:
+                break;
+            default:
+                if ($this->tokenPrev === self::STRING_CR) {
+                    // Fatal error
+                    $this->errors[] = self::ERR_FWS_CRLF_END;
+                    break;
+                }
+                $this->crlf_count = 0;
+
+                $this->contextPrev   = $context;
+                $actualContext = (int) array_pop($this->contentStack);    // End of FWS
+
+                // http://tools.ietf.org/html/rfc5322#section-3.2.2
+                //   Runs of FWS, comment, or CFWS that occur between lexical tokens in a
+                //   structured header field are semantically interpreted as a single
+                //   space character.
+                //
+                // is_email() author's note: This *cannot* mean that we must add a
+                // space to the address wherever CFWS appears. This would result in
+                // any addr-spec that had CFWS outside a quoted string being invalid
+                // for RFC 5321.
+                /*
+                // @todo
+                  if (($actualContext === self::COMPONENT_LOCALPART) ||
+                      ($actualContext === self::COMPONENT_DOMAIN)
+                  ) {
+                    $this->parseData[$actualContext] .= self::STRING_SP;
+
+                    if (!isset($this->atomList[$actualContext][$this->elementCount])) {
+                        $this->atomList[$actualContext][$this->elementCount] = '';
+                    }
+                    $this->atomList[$actualContext][$element_count] .= self::STRING_SP;
+
+                    ++$this->elementLength;
+                }
+                */
+                // Look at this token again in the parent context
+                --$i;
+        }
+
+        $this->tokenPrev = $token;
+
         return $actualContext;
     }
 
