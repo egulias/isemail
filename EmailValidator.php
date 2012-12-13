@@ -1272,7 +1272,7 @@ class EmailValidator
                     // A context we aren't expecting
                     //-------------------------------------------------------------
                     default:
-                        die("Unknown context: $actualContext");
+                        throw new \Exception("Unknown context: $actualContext");
                 }
 
                 // No point going on if we've got a fatal error
@@ -1362,10 +1362,13 @@ class EmailValidator
     protected function checkDNS()
     {
         $checked = false;
-        if (function_exists('dns_get_record') && (
-            !in_array(self::DNSWARN_NO_RECORD, $this->warnings) &&
-            !in_array(self::DNSWARN_NO_MX_RECORD, $this->warnings)
+        if (!function_exists('dns_get_record') && (
+            in_array(self::DNSWARN_NO_RECORD, $this->warnings) &&
+            in_array(self::DNSWARN_NO_MX_RECORD, $this->warnings)
         )) {
+            return;
+        }
+
             // http://tools.ietf.org/html/rfc5321#section-2.3.5
             //   Names that can
             //   be resolved to MX RRs or address (i.e., A or AAAA) RRs (as discussed
@@ -1383,31 +1386,31 @@ class EmailValidator
             // sufficient evidence of the domain's existence. For performance reasons
             // we will not repeat the DNS lookup for the CNAME's target, but we will
             // raise a warning because we didn't immediately find an MX record.
-            if ($this->elementCount === 0) {
-                // Checking TLD DNS seems to work only if you explicitly check from the root
-                $this->parseData[self::COMPONENT_DOMAIN] .= '.';
-            }
+        if ($this->elementCount === 0) {
+            // Checking TLD DNS seems to work only if you explicitly check from the root
+            $this->parseData[self::COMPONENT_DOMAIN] .= '.';
+        }
 
-            // Not using checkdnsrr because of a suspected bug in PHP 5.3 (http://bugs.php.net/bug.php?id=51844)
-            $result = @dns_get_record($this->parseData[self::COMPONENT_DOMAIN], DNS_MX);
-            if ((is_bool($result) && !(bool) $result)) {
-                // Domain can't be found in DNS
-                $this->warnings[] = self::DNSWARN_NO_RECORD;
-            } else {
+        // Not using checkdnsrr because of a suspected bug in PHP 5.3 (http://bugs.php.net/bug.php?id=51844)
+        $result = @dns_get_record($this->parseData[self::COMPONENT_DOMAIN], DNS_MX);
+        if ((is_bool($result) && !(bool) $result)) {
+            // Domain can't be found in DNS
+            $this->warnings[] = self::DNSWARN_NO_RECORD;
+        } else {
+            if (count($result) === 0) {
+                // MX-record for domain can't be found
+                $this->warnings[] = self::DNSWARN_NO_MX_RECORD;
+
+                $result = @dns_get_record($this->parseData[self::COMPONENT_DOMAIN], DNS_A + DNS_CNAME);
                 if (count($result) === 0) {
-                    // MX-record for domain can't be found
-                    $this->warnings[] = self::DNSWARN_NO_MX_RECORD;
-
-                    $result = @dns_get_record($this->parseData[self::COMPONENT_DOMAIN], DNS_A + DNS_CNAME);
-                    if (count($result) === 0) {
-                        // No usable records for the domain can be found
-                        $this->warnings[] = self::DNSWARN_NO_RECORD;
-                    }
-                } else {
-                    $checked = true;
+                    // No usable records for the domain can be found
+                    $this->warnings[] = self::DNSWARN_NO_RECORD;
                 }
+            } else {
+                $checked = true;
             }
         }
+
 
         // Check for TLD addresses
         // -----------------------
