@@ -402,90 +402,7 @@ class EmailValidator
                         //   comment        =   "(" *([FWS] ccontent) [FWS] ")"
                         //
                         //   content        =   ctext / quoted-pair / comment
-                        switch ($token) {
-                            // Nested comment
-                            case self::STRING_OPENPARENTHESIS:
-                                // Nested comments are OK
-                                $this->contentStack[] = $actualContext;
-                                $actualContext  = self::CONTEXT_COMMENT;
-                                break;
-                            // End of comment
-                            case self::STRING_CLOSEPARENTHESIS:
-                                $this->contextPrev   = $actualContext;
-                                $actualContext = (int) array_pop($this->contentStack);
-
-                                // http://tools.ietf.org/html/rfc5322#section-3.2.2
-                                //   Runs of FWS, comment, or CFWS that occur between lexical tokens in a
-                                //   structured header field are semantically interpreted as a single
-                                //   space character.
-                                //
-                                // is_email() author's note: This *cannot* mean that we must add a
-                                // space to the address wherever CFWS appears. This would result in
-                                // any addr-spec that had CFWS outside a quoted string being invalid
-                                // for RFC 5321.
-                                /*
-                                // @todo
-                                if (($actualContext === self::COMPONENT_LOCALPART) ||
-                                    ($actualContext === self::COMPONENT_DOMAIN)
-                                ) {
-                                    $this->parseData[$actualContext] .= self::STRING_SP;
-
-                                    if (!isset($this->atomList[$actualContext][$this->elementCount])) {
-                                        $this->atomList[$actualContext][$this->elementCount] = '';
-                                    }
-                                    $this->atomList[$actualContext][$element_count] .= self::STRING_SP;
-
-                                    ++$this->elementLength;
-                                }
-                                */
-                                break;
-                            // Quoted pair
-                            case self::STRING_BACKSLASH:
-                                $this->contentStack[] = $actualContext;
-                                $actualContext  = self::CONTEXT_QUOTEDPAIR;
-                                break;
-                            // Folding White Space
-                            case self::STRING_CR:
-                            case self::STRING_SP:
-                            case self::STRING_HTAB:
-                                if (($token === self::STRING_CR) &&
-                                    ((++$i === $rawLength) || ($value[$i] !== self::STRING_LF))
-                                ) {
-                                    // Fatal error
-                                    $this->errors[] = self::ERR_CR_NO_LF;
-                                    break;
-                                }
-
-                                $this->warnings[] = self::CFWS_FWS;
-
-                                $this->contentStack[] = $actualContext;
-                                $actualContext  = self::CONTEXT_FWS;
-                                $this->tokenPrev      = $token;
-                                break;
-                            // ctext
-                            default:
-                                // http://tools.ietf.org/html/rfc5322#section-3.2.3
-                                //   ctext           =   %d33-39 /          ; Printable US-ASCII
-                                //                       %d42-91 /          ;  characters not including
-                                //                       %d93-126 /         ;  "(", ")", or "\"
-                                //                       obs-ctext
-                                //
-                                //   obs-ctext       =   obs-NO-WS-CTL
-                                //
-                                //   obs-NO-WS-CTL   =   %d1-8 /            ; US-ASCII control
-                                //                       %d11 /             ;  characters that do not
-                                //                       %d12 /             ;  include the carriage
-                                //                       %d14-31 /          ;  return, line feed, and
-                                //                       %d127              ;  white space characters
-                                $ord = ord($token);
-                                if ($ord > 127 || $ord === 0 || $ord === 10) {
-                                    // Fatal error
-                                    $this->errors[] = self::ERR_EXPECTING_CTEXT;
-                                    break;
-                                } elseif ($ord < 32 || $ord === 127) {
-                                    $this->warnings[] = self::DEPREC_CTEXT;
-                                }
-                        }
+                        $actualContext = $this->checkTokenContextComment($token, $actualContext, $i);
 
                         break;
                     //-------------------------------------------------------------
@@ -1451,6 +1368,95 @@ class EmailValidator
                 throw new \Exception("Quoted pair logic invoked in an invalid context: $actualContext");
         }
 
+        return $actualContext;
+    }
+
+    protected function checkTokenContextComment($token, $actualContext, &$i)
+    {
+        $context = $actualContext;
+        switch ($token) {
+            // Nested comment
+            case self::STRING_OPENPARENTHESIS:
+                // Nested comments are OK
+                $this->contentStack[] = $context;
+                $actualContext  = self::CONTEXT_COMMENT;
+                break;
+            // End of comment
+            case self::STRING_CLOSEPARENTHESIS:
+                $this->contextPrev   = $context;
+                $actualContext = (int) array_pop($this->contentStack);
+
+                // http://tools.ietf.org/html/rfc5322#section-3.2.2
+                //   Runs of FWS, comment, or CFWS that occur between lexical tokens in a
+                //   structured header field are semantically interpreted as a single
+                //   space character.
+                //
+                // is_email() author's note: This *cannot* mean that we must add a
+                // space to the address wherever CFWS appears. This would result in
+                // any addr-spec that had CFWS outside a quoted string being invalid
+                // for RFC 5321.
+                /*
+                // @todo
+                if (($actualContext === self::COMPONENT_LOCALPART) ||
+                    ($actualContext === self::COMPONENT_DOMAIN)
+                ) {
+                    $this->parseData[$actualContext] .= self::STRING_SP;
+
+                    if (!isset($this->atomList[$actualContext][$this->elementCount])) {
+                        $this->atomList[$actualContext][$this->elementCount] = '';
+                    }
+                    $this->atomList[$actualContext][$element_count] .= self::STRING_SP;
+
+                    ++$this->elementLength;
+                }
+                */
+                break;
+            // Quoted pair
+            case self::STRING_BACKSLASH:
+                $this->contentStack[] = $context;
+                $actualContext  = self::CONTEXT_QUOTEDPAIR;
+                break;
+            // Folding White Space
+            case self::STRING_CR:
+            case self::STRING_SP:
+            case self::STRING_HTAB:
+                $rawLength = strlen($this->value);
+                if (($token === self::STRING_CR) && ((++$i === $rawLength) || ($this->value[$i] !== self::STRING_LF))) {
+                    // Fatal error
+                    $this->errors[] = self::ERR_CR_NO_LF;
+                    break;
+                }
+
+                $this->warnings[] = self::CFWS_FWS;
+
+                $this->contentStack[] = $context;
+                $actualContext  = self::CONTEXT_FWS;
+                $this->tokenPrev      = $token;
+                break;
+            // ctext
+            default:
+                // http://tools.ietf.org/html/rfc5322#section-3.2.3
+                //   ctext           =   %d33-39 /          ; Printable US-ASCII
+                //                       %d42-91 /          ;  characters not including
+                //                       %d93-126 /         ;  "(", ")", or "\"
+                //                       obs-ctext
+                //
+                //   obs-ctext       =   obs-NO-WS-CTL
+                //
+                //   obs-NO-WS-CTL   =   %d1-8 /            ; US-ASCII control
+                //                       %d11 /             ;  characters that do not
+                //                       %d12 /             ;  include the carriage
+                //                       %d14-31 /          ;  return, line feed, and
+                //                       %d127              ;  white space characters
+                $ord = ord($token);
+                if ($ord > 127 || $ord === 0 || $ord === 10) {
+                    // Fatal error
+                    $this->errors[] = self::ERR_EXPECTING_CTEXT;
+                    break;
+                } elseif ($ord < 32 || $ord === 127) {
+                    $this->warnings[] = self::DEPREC_CTEXT;
+                }
+        }
         return $actualContext;
     }
 
