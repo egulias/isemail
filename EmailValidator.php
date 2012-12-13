@@ -164,7 +164,7 @@ class EmailValidator
     protected $contextPrev;
     protected $contextStack = array();
 
-    protected $tokenPrev;
+    protected $tokenPrev = '';
     protected $endOfElement = false;
 
     // Hyphen cannot occur at the end of a subdomain
@@ -255,8 +255,7 @@ class EmailValidator
             $this->contextPrev   = self::COMPONENT_LOCALPART; // Where we just came from
             $this->contentStack  = array($actualContext);     // Where we have been
 
-            $token     =
-            $this->tokenPrev = '';
+            $token     = '';
 
 
             // CFWS can only appear at the end of the element
@@ -392,59 +391,7 @@ class EmailValidator
                         //                       %d127              ;  white space characters
                         //
                         // i.e. obs-qp       =  "\" (%d0-8, %d10-31 / %d127)
-                        $ord = ord($token);
-                        if ($ord > 127) {
-                            // Fatal error
-                            $this->errors[]  = self::ERR_EXPECTING_QPAIR;
-                        } elseif (($ord < 31 && $ord !== 9) || $ord === 127) {
-                            // SP & HTAB are allowed
-                            $this->warnings[] = self::DEPREC_QP;
-                        }
-
-                        // At this point we know where this qpair occurred so
-                        // we could check to see if the character actually
-                        // needed to be quoted at all.
-                        // http://tools.ietf.org/html/rfc5321#section-4.1.2
-                        //   the sending system SHOULD transmit the
-                        //   form that uses the minimum quoting possible.
-
-                        // @Todo: check whether the character needs to be quoted (escaped) in this context
-
-                        $this->contextPrev   = $actualContext;
-                        $actualContext = (int) array_pop($this->contentStack); // End of qpair
-
-                        $token         = self::STRING_BACKSLASH . $token;
-
-                        switch ($actualContext) {
-                            case self::CONTEXT_COMMENT:
-                                break;
-                            case self::CONTEXT_QUOTEDSTRING:
-                                $this->parseData[self::COMPONENT_LOCALPART] .= $token;
-
-                                if (!isset($this->atomList[self::COMPONENT_LOCALPART][$this->elementCount])) {
-                                    $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] = '';
-                                }
-                                $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] .= $token;
-
-                                // The maximum sizes specified by RFC 5321 are octet counts,
-                                // so we must include the backslash
-                                $this->elementLength += 2;
-                                break;
-                            case self::COMPONENT_LITERAL:
-                                $this->parseData[self::COMPONENT_DOMAIN] .= $token;
-
-                                if (!isset($this->atomList[self::COMPONENT_DOMAIN][$this->elementCount])) {
-                                    $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] = '';
-                                }
-                                $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] .= $token;
-
-                                // The maximum sizes specified by RFC 5321 are octet counts,
-                                // so we must include the backslash
-                                $this->elementLength += 2;
-                                break;
-                            default:
-                                throw new \Exception("Quoted pair logic invoked in an invalid context: $actualContext");
-                        }
+                        $actualContext = $this->checkTokenContextQuotedPair($token, $actualContext, $i);
 
                         break;
                     //-------------------------------------------------------------
@@ -1433,6 +1380,77 @@ class EmailValidator
 
                 ++$this->elementLength;
         }
+        return $actualContext;
+    }
+
+    /**
+     * checkTokenContextQuotedPair
+     *
+     * @param string  $token
+     * @param int     $actualContext
+     * @param int     $i
+     *
+     * @return int actualContext
+     */
+    public function checkTokenContextQuotedPair($token, $actualContext, &$i)
+    {
+        $context = $actualContext;
+
+        $ord = ord($token);
+        if ($ord > 127) {
+            // Fatal error
+            $this->errors[]  = self::ERR_EXPECTING_QPAIR;
+        } elseif (($ord < 31 && $ord !== 9) || $ord === 127) {
+            // SP & HTAB are allowed
+            $this->warnings[] = self::DEPREC_QP;
+        }
+
+        // At this point we know where this qpair occurred so
+        // we could check to see if the character actually
+        // needed to be quoted at all.
+        // http://tools.ietf.org/html/rfc5321#section-4.1.2
+        //   the sending system SHOULD transmit the
+        //   form that uses the minimum quoting possible.
+
+        // @Todo: check whether the character needs to be quoted (escaped) in this context
+
+        $this->contextPrev   = $context;
+        $actualContext = (int) array_pop($this->contentStack); // End of qpair
+
+        //only affects local scope
+        $token         = self::STRING_BACKSLASH . $token;
+
+        switch ($actualContext) {
+            case self::CONTEXT_COMMENT:
+                break;
+            case self::CONTEXT_QUOTEDSTRING:
+                $this->parseData[self::COMPONENT_LOCALPART] .= $token;
+
+                if (!isset($this->atomList[self::COMPONENT_LOCALPART][$this->elementCount])) {
+                    $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] = '';
+                }
+                $this->atomList[self::COMPONENT_LOCALPART][$this->elementCount] .= $token;
+
+                // The maximum sizes specified by RFC 5321 are octet counts,
+                // so we must include the backslash
+                $this->elementLength += 2;
+                break;
+            case self::COMPONENT_LITERAL:
+                $this->parseData[self::COMPONENT_DOMAIN] .= $token;
+
+                if (!isset($this->atomList[self::COMPONENT_DOMAIN][$this->elementCount])) {
+                    $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] = '';
+                }
+                $this->atomList[self::COMPONENT_DOMAIN][$this->elementCount] .= $token;
+
+                // The maximum sizes specified by RFC 5321 are octet counts,
+                // so we must include the backslash
+                $this->elementLength += 2;
+                break;
+            default:
+                throw new \Exception("Quoted pair logic invoked in an invalid context: $actualContext");
+        }
+
         return $actualContext;
     }
 
