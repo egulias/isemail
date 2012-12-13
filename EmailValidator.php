@@ -1,4 +1,5 @@
 <?php
+
 class EmailValidator
 {
     const VALID_CATEGORY = 1;
@@ -144,6 +145,13 @@ class EmailValidator
 
     protected $errors   = array();
     protected $warnings = array();
+
+    /**
+     * crlf_count
+     *
+     * @var int
+     */
+    protected $crlf_count = 0;
 
     public function __construct()
     {
@@ -1078,7 +1086,7 @@ class EmailValidator
                                 $this->elementLength += 2;
                                 break;
                             default:
-                                die("Quoted pair logic invoked in an invalid context: $actualContext");
+                                throw new \Exception("Quoted pair logic invoked in an invalid context: $actualContext");
                         }
 
                         break;
@@ -1200,11 +1208,11 @@ class EmailValidator
                                 break;
                             }
 
-                            if (isset($crlf_count) && ++$crlf_count > 1) {
+                            if (++$this->crlf_count > 1) {
                                 // Multiple folds = obsolete FWS
                                 $this->warnings[] = self::DEPREC_FWS;
                             } else {
-                                $crlf_count = 1;
+                                $this->crlf_count = 1;
                             }
                         }
 
@@ -1225,10 +1233,7 @@ class EmailValidator
                                     $this->errors[] = self::ERR_FWS_CRLF_END;
                                     break;
                                 }
-
-                                if (isset($crlf_count)) {
-                                    unset($crlf_count);
-                                }
+                                $this->crlf_count = 0;
 
                                 $contextPrev   = $actualContext;
                                 $actualContext = (int) array_pop($contextStack);    // End of FWS
