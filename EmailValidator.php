@@ -1393,22 +1393,22 @@ class EmailValidator
 
         // Not using checkdnsrr because of a suspected bug in PHP 5.3 (http://bugs.php.net/bug.php?id=51844)
         $result = @dns_get_record($this->parseData[self::COMPONENT_DOMAIN], DNS_MX);
+        $checked = true;
         if ((is_bool($result) && !(bool) $result)) {
             // Domain can't be found in DNS
             $this->warnings[] = self::DNSWARN_NO_RECORD;
-        } else {
-            if (count($result) === 0) {
-                // MX-record for domain can't be found
-                $this->warnings[] = self::DNSWARN_NO_MX_RECORD;
+            $checked = false;
+        }
+        if (count($result) === 0) {
+            // MX-record for domain can't be found
+            $this->warnings[] = self::DNSWARN_NO_MX_RECORD;
 
-                $result = @dns_get_record($this->parseData[self::COMPONENT_DOMAIN], DNS_A + DNS_CNAME);
-                if (count($result) === 0) {
-                    // No usable records for the domain can be found
-                    $this->warnings[] = self::DNSWARN_NO_RECORD;
-                }
-            } else {
-                $checked = true;
+            $result = @dns_get_record($this->parseData[self::COMPONENT_DOMAIN], DNS_A + DNS_CNAME);
+            if (count($result) === 0) {
+              // No usable records for the domain can be found
+              $this->warnings[] = self::DNSWARN_NO_RECORD;
             }
+            $checked = false;
         }
 
 
