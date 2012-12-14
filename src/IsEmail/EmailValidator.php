@@ -1,6 +1,6 @@
 <?php
 
-namespace EmailValidator;
+namespace IsEmail;
 
 class EmailValidator
 {
