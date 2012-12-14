@@ -1,0 +1,13 @@
+{
+  "name": "egulias/isemail",
+  "description": "A library for validating emails",
+  "license": "BSD",
+  "require": {
+    "jms/parser-lib": "dev-master"
+  },
+  "autoload": {
+    "psr-0": {
+      "IsEmail\\": "src/"
+    }
+  }
+}
