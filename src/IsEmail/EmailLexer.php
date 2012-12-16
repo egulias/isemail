@@ -6,6 +6,11 @@ use JMS\Parser\AbstractLexer;
 
 class EmailLexer extends AbstractLexer
 {
+    //ASCII values
+    const C_DEL = 127;
+    const C_NUL = 0;
+
+
     const S_AT               = 256;//'@';
     const S_BACKSLASH        = 257;//'\\';
     const S_DOT              = 258;//'.';
@@ -69,6 +74,12 @@ class EmailLexer extends AbstractLexer
         }
 
         throw new \InvalidArgumentException(sprintf('There is no token with value %s.', json_encode($value)));
+    }
+
+    public function find($type)
+    {
+        $search = clone $this;
+        $search->skipUntil($type);
     }
 
     /**

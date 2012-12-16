@@ -55,52 +55,69 @@ class EmailParser extends AbstractParser
     const ERR_FWS_CRLF_END       = 149;
     const ERR_CR_NO_LF           = 150;
 
-    const STRING_AT               = 256;//'@';
-    const STRING_BACKSLASH        = 257;//'\\';
-    const STRING_DOT              = 258;//'.';
-    const STRING_DQUOTE           = 259;//'"';
-    const STRING_OPENPARENTHESIS  = 260;//'(';
-    const STRING_CLOSEPARENTHESIS = 261;//')';
-    const STRING_OPENSQBRACKET    = 262;//'[';
-    const STRING_CLOSESQBRACKET   = 263;//']';
-    const STRING_HYPHEN           = 264;//'-';
-    const STRING_COLON            = 265;//':';
-    const STRING_DOUBLECOLON      = 266;//'::';
-    const STRING_SP               = 267;//' ';
-    const STRING_HTAB             = 268;//"\t";
-    const STRING_CR               = 269;//"\r";
-    const STRING_LF               = 270;//"\n";
-    const STRING_IPV6TAG          = 271;//'IPv6:';
-    const STRING_LOWERTHAN        = 272;
-    const STRING_GREATERTHAN      = 273;
-    const STRING_COMMA            = 274;
 
-    /**
-     * US-ASCII visible characters not valid for atext (@link http://tools.ietf.org/html/rfc5322#section-3.2.3)
-     *
-     * @var array
-     */
-    protected $specialCharacters = array(
-        '('  => self::STRING_OPENPARENTHESIS,
-        ')'  => self::STRING_CLOSEPARENTHESIS,
-        '<'  => self::STRING_LOWERTHAN,
-        '>'  => self::STRING_GREATERTHAN,
-        '['  => self::STRING_OPENBRACKET,
-        ']'  => self::STRING_CLOSEBRACKET,
-        ':'  => self::STRING_COLON,
-        ';'  => self::STRING_SEMICOLON,
-        '@'  => self::STRING_AT,
-        '\\' => self::STRNG_BACKSLASH,
-        ','  => self::STRING_COMMA,
-        '.'  => self::STRING_DOT,
-        '"'  => self::STRING_DQUOTE
-    );
+    protected $warnings = array();
 
     /**
      *  {@inherit}
      */
     public function parseInternal()
     {
+        while (!$this->lexer->isNext(258)) {
+            $this->lexer->moveNext();
+            if ($this->lexer->token[0] === EmailLexer::S_DOT) {
+                throw new \InvalidArgumentException("ERR_DOT_START");
+            }
+            if ($this->lexer->token[0] === EmailLexer::S_AT) {
+                return;
+            }
+            $this->parseLocalPart();
+        }
 
+    }
+
+    private function parseLocalPart()
+    {
+        $lexer = clone $this->lexer;
+
+        //Comments
+        if ($lexer->token[0] === EmailLexer::S_OPENPARENTHESIS) {
+            $this->parseComments();
+        } elseif ($lexer->token[0] === EmailLexer::S_DOT) {
+            if ($lexer->isNext(EmailLexer::S_DOT)) {
+                throw new \InvalidArgumentException("ERR_CONSECUTIVEDOTS");
+            } elseif ($lexer->isNext(EmailLexer::S_AT)) {
+                throw new \InvalidArgumentException("ERR_DOT_END");
+            }
+        }
+    }
+
+    private function parseComments()
+    {
+        $lexer = clone $this->lexer;
+        $this->warnings[] = self::CFWS_COMMENT;
+        while (!$lexer->isNext(EmailLexer::S_CLOSEPARENTHESIS)) {
+            try {
+                $lexer->find(EmailLexer::S_CLOSEPARENTHESIS);
+            } catch (\RuntimeException $e) {
+                throw new \InvalidArgumentException(
+                    sprintf("Expected %s, but found none", EmailLexer::S_CLOSEPARENTHESIS)
+                );
+            }
+            $lexer->moveNext();
+
+            //scaping in a comment
+            if ($lexer->token[0] === EmailLexer::S_BACKSLASH) {
+                if ($lexer->isNextAny(array(EmailLexer::S_SP, EmailLexer::S_HTAB, EmailLexer::C_DEL))) {
+                    $this->warnings[] = self::DEPREC_QP;
+                }
+            } elseif ($lexer->token[0] === EmailLexer::S_SP || $lexer->token[0] === EmailLexer::S_HTAB) {
+                $this->warnings[] = self::CFWS_FWS;
+            } elseif ($lexer->token[0] === EmailLexer::S_CR && !$lexer->isNext(EmailLexer::S_LF)) {
+                throw new \InvalidArgumentException("ERR_CR_NO_LF");
+            } elseif ($lexer->token[0] === EmailLexer::S_LF || $lexer->token[0] === EmailLexer::C_NUL) {
+                throw new \InvalidArgumentException("ERR_EXPECTING_CTEXT");
+            }
+        }
     }
 }
