@@ -16,9 +16,9 @@ class EmailParser extends AbstractParser
     const DEPREC_CFWS_NEAR_AT     = 49;
 
     // The address is only valid according to the broad definition of RFC 5322. It is otherwise invalid.
+    const RFC5322_LOCAL_TOOLONG   = 64;
     const RFC5322_DOMAIN          = 65;
     const RFC5322_TOOLONG         = 66;
-    const RFC5322_LOCAL_TOOLONG   = 67;
     const RFC5322_DOMAIN_TOOLONG  = 68;
     const RFC5322_LABEL_TOOLONG   = 69;
     const RFC5322_DOMAINLITERAL   = 70;
@@ -57,67 +57,125 @@ class EmailParser extends AbstractParser
 
 
     protected $warnings = array();
+    protected $index = 0;
 
     /**
      *  {@inherit}
      */
     public function parseInternal()
     {
-        while (!$this->lexer->isNext(258)) {
-            $this->lexer->moveNext();
-            if ($this->lexer->token[0] === EmailLexer::S_DOT) {
-                throw new \InvalidArgumentException("ERR_DOT_START");
-            }
-            if ($this->lexer->token[0] === EmailLexer::S_AT) {
-                return;
-            }
-            $this->parseLocalPart();
+        echo 'EmailParser' . PHP_EOL;
+        $this->lexer->moveNext();
+        if ($this->lexer->token[0] === EmailLexer::S_AT) {
+            throw new \InvalidArgumentException("ERR_NOLOCALPART");
         }
+        $this->parseLocalPart();
+        die('end of local part');
+        return array('p');
 
     }
 
     private function parseLocalPart()
     {
-        $lexer = clone $this->lexer;
-
-        //Comments
-        if ($lexer->token[0] === EmailLexer::S_OPENPARENTHESIS) {
-            $this->parseComments();
-        } elseif ($lexer->token[0] === EmailLexer::S_DOT) {
-            if ($lexer->isNext(EmailLexer::S_DOT)) {
-                throw new \InvalidArgumentException("ERR_CONSECUTIVEDOTS");
-            } elseif ($lexer->isNext(EmailLexer::S_AT)) {
-                throw new \InvalidArgumentException("ERR_DOT_END");
+        $legth = 0;
+        while (!$this->lexer->isNext(EmailLexer::S_AT)) {
+            var_dump($this->lexer->token);
+            if ($this->lexer->token[0] === EmailLexer::S_DOT && $this->index == 0) {
+                throw new \InvalidArgumentException("ERR_DOT_START");
             }
+            if ($this->lexer->token[0] === EmailLexer::S_DQUOTE) {
+                if ($this->index > 0) {
+                    throw new \InvalidArgumentException("ERR_EXPECTING_ATEXT");
+                }
+                if ($this->index == 0) {
+                    $this->warnings[] = self::RFC5321_QUOTEDSTRING;
+                } else {
+                    $this->warnings[] = self::DEPREC_LOCALPART;
+                }
+            }
+            //Comments
+            if ($this->lexer->token[0] === EmailLexer::S_OPENPARENTHESIS) {
+                $this->parseComments();
+            } elseif ($this->lexer->token[0] === EmailLexer::S_DOT) {
+                if ($this->lexer->isNext(EmailLexer::S_DOT)) {
+                    throw new \InvalidArgumentException("ERR_CONSECUTIVEDOTS");
+                } elseif ($this->lexer->isNext(EmailLexer::S_AT)) {
+                    throw new \InvalidArgumentException("ERR_DOT_END");
+                }
+            }
+
+            $this->parseFWS();
+
+            if ($this->lexer->token[0] === EmailLexer::S_AT) {
+                die('is @');
+                return;
+            }
+            $this->index++;
+            $legth++;
         }
+
+        if ($legth > self::RFC5322_LOCAL_TOOLONG) {
+            $this->warnings[] = self::RFC5322_LOCAL_TOOLONG;
+        }
+
     }
 
     private function parseComments()
     {
-        $lexer = clone $this->lexer;
         $this->warnings[] = self::CFWS_COMMENT;
-        while (!$lexer->isNext(EmailLexer::S_CLOSEPARENTHESIS)) {
+        while (!$this->lexer->isNext(EmailLexer::S_CLOSEPARENTHESIS)) {
             try {
-                $lexer->find(EmailLexer::S_CLOSEPARENTHESIS);
+                $this->lexer->find(EmailLexer::S_CLOSEPARENTHESIS);
             } catch (\RuntimeException $e) {
                 throw new \InvalidArgumentException(
                     sprintf("Expected %s, but found none", EmailLexer::S_CLOSEPARENTHESIS)
                 );
             }
-            $lexer->moveNext();
+            $this->lexer->moveNext();
 
             //scaping in a comment
-            if ($lexer->token[0] === EmailLexer::S_BACKSLASH) {
-                if ($lexer->isNextAny(array(EmailLexer::S_SP, EmailLexer::S_HTAB, EmailLexer::C_DEL))) {
+            if ($this->lexer->token[0] === EmailLexer::S_BACKSLASH) {
+                if ($this->lexer->isNextAny(array(EmailLexer::S_SP, EmailLexer::S_HTAB, EmailLexer::C_DEL))) {
                     $this->warnings[] = self::DEPREC_QP;
                 }
-            } elseif ($lexer->token[0] === EmailLexer::S_SP || $lexer->token[0] === EmailLexer::S_HTAB) {
-                $this->warnings[] = self::CFWS_FWS;
-            } elseif ($lexer->token[0] === EmailLexer::S_CR && !$lexer->isNext(EmailLexer::S_LF)) {
-                throw new \InvalidArgumentException("ERR_CR_NO_LF");
-            } elseif ($lexer->token[0] === EmailLexer::S_LF || $lexer->token[0] === EmailLexer::C_NUL) {
-                throw new \InvalidArgumentException("ERR_EXPECTING_CTEXT");
+                $this->parseFWS();
             }
         }
+
+        $this->cFWSNearAt();
+    }
+
+    private function parseFWS()
+    {
+        if ($this->lexer->token[0] === EmailLexer::S_SP || $this->lexer->token[0] === EmailLexer::S_HTAB) {
+            $this->warnings[] = self::CFWS_FWS;
+        } elseif ($this->isCRLF()) {
+            throw new \InvalidArgumentException("ERR_CR_NO_LF");
+        } elseif ($this->lexer->token[0] === EmailLexer::S_CR && $this->lexer->token[0] === EmailLexer::S_CR) {
+            throw new \InvalidArgumentException("ERR_FWS_CRLF_X2");
+        } elseif ($this->lexer->token[0] === EmailLexer::S_LF || $this->lexer->token[0] === EmailLexer::C_NUL) {
+            throw new \InvalidArgumentException("ERR_EXPECTING_CTEXT");
+        } elseif (!$this->lexer->isNext(EmailLexer::S_SP) && !$this->lexer->isNext(EmailLexer::S_HTAB)) {
+            throw new \InvalidArgumentException("ERR_FWS_CRLF_END");
+        }
+
+        $this->cFWSNearAt();
+
+    }
+
+    private function cFWSNearAt()
+    {
+        if ($this->lexer->isNext(EmailLexer::S_AT)) {
+            $this->warnings[] = self::DEPREC_CFWS_NEAR_AT;
+        }
+    }
+
+    private function isCRLF()
+    {
+        if ($this->lexer->token[0] === EmailLexer::S_CR && !$this->lexer->isNext(EmailLexer::S_LF)) {
+            return true;
+        }
+
+        return false;
     }
 }

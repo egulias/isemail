@@ -62,6 +62,20 @@ class EmailLexer extends AbstractLexer
         '>'    => self::S_GREATERTHAN,
     );
 
+    public function setInput($str)
+    {
+        $tokens = str_split($str);
+
+        $this->tokens = array();
+        foreach ($tokens as $i => $chr) {
+            $token = array();
+            $token[1] = $i;
+            list($token[2], $token[0]) = $this->determineTypeAndValue($chr);
+            $this->tokens[] = $token;
+        }
+        $this->reset();
+    }
+
     public function getName($type)
     {
         if (isset($this->nameValue[$type])) {
@@ -71,6 +85,8 @@ class EmailLexer extends AbstractLexer
                     return $name;
                 }
             }
+        } elseif ($type <= 127) {
+            return chr($type);
         }
 
         throw new \InvalidArgumentException(sprintf('There is no token with value %s.', json_encode($value)));
@@ -87,7 +103,7 @@ class EmailLexer extends AbstractLexer
      */
     protected function getRegex()
     {
-        return '/\w+/';
+        return '//';
     }
 
     /**
@@ -95,8 +111,11 @@ class EmailLexer extends AbstractLexer
      */
     protected function determineTypeAndValue($value)
     {
+        $ascii = ord($value);
         if (isset($this->nameValue[$value])) {
             return array($value, $this->nameValue[$value]);
+        } elseif ($ascii <= 127) {
+            return array($value, $ascii);
         }
 
         throw new \InvalidArgumentException(sprintf('There is no token with value %s.', json_encode($value)));
