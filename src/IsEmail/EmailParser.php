@@ -17,10 +17,10 @@ class EmailParser extends AbstractParser
 
     // The address is only valid according to the broad definition of RFC 5322. It is otherwise invalid.
     const RFC5322_LOCAL_TOOLONG   = 64;
+    const RFC5322_LABEL_TOOLONG   = 63;
     const RFC5322_DOMAIN          = 65;
     const RFC5322_TOOLONG         = 66;
     const RFC5322_DOMAIN_TOOLONG  = 68;
-    const RFC5322_LABEL_TOOLONG   = 69;
     const RFC5322_DOMAINLITERAL   = 70;
     const RFC5322_DOMLIT_OBSDTEXT = 71;
     const RFC5322_IPV6_GRPCOUNT   = 72;
@@ -70,15 +70,69 @@ class EmailParser extends AbstractParser
             throw new \InvalidArgumentException("ERR_NOLOCALPART");
         }
         $this->parseLocalPart();
-        die('end of local part');
+        $this->parseDomainPart();
+
+        die('end');
         return array('p');
 
+    }
+
+    private function parseDomainPart()
+    {
+        $legth = 0;
+        $this->lexer->moveNext();
+        $legth++;
+        if ($this->lexer->token[0] === EmailLexer::S_AT) {
+            throw new \InvalidArgumentException("ERR_CONSECUTIVEATS");
+        }
+        if ($this->lexer->token[0] === EmailLexer::S_DOT) {
+            throw new \InvalidArgumentException("ERR_DOT_START");
+        }
+        // Comments at the start of the domain are deprecated in the text
+        // Comments at the start of a subdomain are obs-domain
+        // (http://tools.ietf.org/html/rfc5322#section-3.4.1)
+        if ($this->lexer->token[0] === EmailLexer::S_OPENPARENTHESIS) {
+            $this->warnings[] = self::DEPREC_COMMENT;
+            $this->lexer->moveNext();
+            $legth++;
+        }
+        if ($this->lexer->token[0] === EmailLexer::S_OPENQBRACKET) {
+            throw new \InvalidArgumentException("ERR_EXPECTING_ATEXT");
+        }
+
+        do {
+            $prev = $this->lexer->getPrevious();
+            if ($this->lexer->token[0] === EmailLexer::S_OPENPARENTHESIS) {
+                $this->warnings[] = self::CFWS_COMMENT;
+                $this->parseComments();
+            }
+            if ($this->lexer->token[0] === EmailLexer::S_DOT && $this->isNext(EmailLexer::S_DOT)) {
+                throw new \InvalidArgumentException("ERR_CONSECUTIVEDOTS");
+            }
+            if ($prev[0] === EmailLexer::S_HYPHEN) {
+                throw new \InvalidArgumentException("ERR_DOMAINHYPHENEND");
+            }
+            if ($this->lexer->token[0] === EmailLexer::S_OPENQBRACKET) {
+                //throw new \InvalidArgumentException("ERR_EXPECTING_ATEXT");
+                $this->parseDomainLiteral();
+            }
+            $legth++;
+
+        } while ($this->lexer->moveNext());
+
+        if ($legth > self::RFC5322_LABEL_TOOLONG) {
+            $this->warnings[] = self::RFC5322_LOCAL_TOOLONG;
+        }
+    }
+
+    private function parseDomainLiteral()
+    {
     }
 
     private function parseLocalPart()
     {
         $legth = 0;
-        while (!$this->lexer->isNext(EmailLexer::S_AT)) {
+        while ($this->lexer->token[0] !== EmailLexer::S_AT) {
             var_dump($this->lexer->token);
             if ($this->lexer->token[0] === EmailLexer::S_DOT && $this->index == 0) {
                 throw new \InvalidArgumentException("ERR_DOT_START");
@@ -89,9 +143,8 @@ class EmailParser extends AbstractParser
                 }
                 if ($this->index == 0) {
                     $this->warnings[] = self::RFC5321_QUOTEDSTRING;
-                } else {
-                    $this->warnings[] = self::DEPREC_LOCALPART;
                 }
+                $this->warnings[] = self::DEPREC_LOCALPART;
             }
             //Comments
             if ($this->lexer->token[0] === EmailLexer::S_OPENPARENTHESIS) {
@@ -104,14 +157,14 @@ class EmailParser extends AbstractParser
                 }
             }
 
-            $this->parseFWS();
-
-            if ($this->lexer->token[0] === EmailLexer::S_AT) {
-                die('is @');
-                return;
+            if ($this->isCRLF()) {
+                die('p');
+                $this->parseFWS();
             }
+
             $this->index++;
             $legth++;
+            $this->lexer->moveNext();
         }
 
         if ($legth > self::RFC5322_LOCAL_TOOLONG) {

@@ -30,7 +30,9 @@ class EmailLexer extends AbstractLexer
     const S_LOWERTHAN        = 272;//'<'
     const S_GREATERTHAN      = 273;//'>'
     const S_COMMA            = 274;//','
-    const S_SEMICOLON        = 274;//';'
+    const S_SEMICOLON        = 275;//';'
+    const S_OPENQBRACKET     = 276;//'[';
+    const S_CLOSEQBRACKET    = 277;//']';
 
     /**
      * US-ASCII visible characters not valid for atext (@link http://tools.ietf.org/html/rfc5322#section-3.2.3)
@@ -60,7 +62,11 @@ class EmailLexer extends AbstractLexer
         'IPv6' => self::S_IPV6TAG,
         '<'    => self::S_LOWERTHAN,
         '>'    => self::S_GREATERTHAN,
+        '{'    => self::S_OPENQBRACKET,
+        '}'    => self::S_CLOSEQBRACKET,
     );
+
+    protected $previous;
 
     public function setInput($str)
     {
@@ -98,6 +104,16 @@ class EmailLexer extends AbstractLexer
         $search->skipUntil($type);
     }
 
+    public function getPrevious()
+    {
+        return $this->preious;
+    }
+
+    protected function moveNext()
+    {
+        $this->preious = $this->token;
+        return parent::moveNext();
+    }
     /**
      * {@inherit}
      */
