@@ -125,6 +125,7 @@ class EmailParser extends AbstractParser
                 }
                 $this->parseDomainLiteral();
             }
+            $this->parseFWS();
             $legth++;
 
         } while ($this->lexer->moveNext());
@@ -147,7 +148,6 @@ class EmailParser extends AbstractParser
             if ($this->lexer->token[0] === EmailLexer::S_OPENQBRACKET) {
                 throw new \InvalidArgumentException("ERR_EXPECTING_DTEXT");
             }
-
             if ($this->lexer->isNextAny(array(EmailLexer::S_HTAB, EmailLexer::S_SP))) {
                 $this->warnings[] = self::CFWS_FWS;
                 $this->parseFWS();
@@ -335,7 +335,7 @@ class EmailParser extends AbstractParser
     {
         if ($this->lexer->token[0] === EmailLexer::S_SP || $this->lexer->token[0] === EmailLexer::S_HTAB) {
             $this->warnings[] = self::CFWS_FWS;
-        } elseif ($this->isCRLF()) {
+        } elseif (!$this->isCRLF()) {
             throw new \InvalidArgumentException("ERR_CR_NO_LF");
         } elseif ($this->lexer->token[0] === EmailLexer::S_CR && $this->lexer->token[0] === EmailLexer::S_CR) {
             throw new \InvalidArgumentException("ERR_FWS_CRLF_X2");
@@ -358,7 +358,7 @@ class EmailParser extends AbstractParser
 
     private function isCRLF()
     {
-        if ($this->lexer->token[0] === EmailLexer::S_CR && !$this->lexer->isNext(EmailLexer::S_LF)) {
+        if ($this->lexer->token[0] === EmailLexer::S_CR && $this->lexer->isNext(EmailLexer::S_LF)) {
             return true;
         }
 
