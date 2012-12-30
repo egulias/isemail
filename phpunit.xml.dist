@@ -11,4 +11,9 @@
          syntaxCheck="false"
          bootstrap="tests/bootstrap.php"
 >
+<testsuites>
+  <testsuite name="EmailValidator Test Suite">
+    <directory>./tests/IsEmail/</directory>
+  </testsuite>
+</testsuites>
 </phpunit>
