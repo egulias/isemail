@@ -86,18 +86,17 @@ class EmailLexer extends AbstractLexer
 
     public function getName($type)
     {
-        if (isset($this->nameValue[$type])) {
-            $ref = new \ReflectionClass($this);
-            foreach ($ref->getConstants() as $name => $value) {
-                if ($value === $this->charValue[$type]) {
-                    return $name;
-                }
+        $ref = new \ReflectionClass($this);
+        foreach ($ref->getConstants() as $name => $value) {
+            if ($value === $type) {
+                return $name;
             }
-        } elseif ($type <= 127) {
+        }
+        if ($type <= 127) {
             return chr($type);
         }
 
-        throw new \InvalidArgumentException(sprintf('There is no token with value %s.', json_encode($value)));
+        throw new \InvalidArgumentException(sprintf('There is no token with value %s.', json_encode($type)));
     }
 
     public function find($type)
@@ -126,6 +125,21 @@ class EmailLexer extends AbstractLexer
         $this->previous = $this->token;
         return parent::moveNext();
     }
+
+    public function isNext($type)
+    {
+        $type = array_search($type, $this->charValue);
+        return parent::isNext($type);
+    }
+
+    public function isNextAny(array $types)
+    {
+        foreach ($types as $i => $type) {
+            $types[$i] = array_search($type, $this->charValue);
+        }
+        return parent::isNextAny($types);
+    }
+
     /**
      * {@inherit}
      */

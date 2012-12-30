@@ -24,11 +24,15 @@ class EmailValidator
     public function isValid($email, $checkDNS = false, $strict = false)
     {
         try {
-            $this->emailParts = $this->parser->parse((string)$email);
+            $this->parser->parse((string)$email);
+            $this->emailParts = explode('@', $email);
             $this->warnings = $this->parser->getWarnings();
         } catch (\Exception $e) {
             $this->error = $e->getMessage();
-            var_dump($this->error);
+            //echo $e->getFile() . ' ' . $e->getLine() . PHP_EOL;
+            //var_dump($e->getTrace());
+            //echo PHP_EOL . $e->getMessage();
+
             return false;
         }
 
@@ -49,7 +53,7 @@ class EmailValidator
      */
     public function hasWarnings()
     {
-        return empty($this->warnings);
+        return !empty($this->warnings);
     }
 
     /**
@@ -129,7 +133,7 @@ class EmailValidator
         //}
 
         // Not using checkdnsrr because of a suspected bug in PHP 5.3 (http://bugs.php.net/bug.php?id=51844)
-        $result = @dns_get_record($this->emailParts['domain'], DNS_MX);
+        $result = @dns_get_record($this->emailParts[1], DNS_MX);
         $checked = true;
         if ((is_bool($result) && !(bool) $result)) {
             // Domain can't be found in DNS
@@ -139,7 +143,7 @@ class EmailValidator
             // MX-record for domain can't be found
             $this->warnings[] = self::DNSWARN_NO_MX_RECORD;
 
-            $result = @dns_get_record($this->emailParts['domain'], DNS_A + DNS_CNAME);
+            $result = @dns_get_record($this->emailParts[1], DNS_A + DNS_CNAME);
             if (count($result) === 0) {
                 // No usable records for the domain can be found
                 $this->warnings[] = self::DNSWARN_NO_RECORD;

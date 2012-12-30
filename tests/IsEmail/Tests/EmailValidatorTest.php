@@ -30,10 +30,10 @@ class EmailValidatorTest extends \PHPUnit_Framework_TestCase
     {
         return array(
             array('fabien@symfony.com'),
-//            array('example@example.co.uk'),
-//            array('fabien_potencier@example.fr'),
-//            array('example@localhost'),
-//            array('example((example))@fakedfake.co.uk'),
+            array('example@example.co.uk'),
+            array('fabien_potencier@example.fr'),
+            array('example@localhost'),
+            array('example((example))@fakedfake.co.uk'),
         );
     }
 
@@ -49,12 +49,12 @@ class EmailValidatorTest extends \PHPUnit_Framework_TestCase
     {
         return array(
             array('example.@example.co.uk'),
-//            array('(fabien_potencier@example.fr)'),
-//            array('example(example)example@example.co.uk'),
-//            array('.example@localhost'),
-//            array('ex\ample@localhost'),
-//            array('example@local\host'),
-//            array('example@localhost.'),
+            array('(fabien_potencier@example.fr)'),
+            array('example(example)example@example.co.uk'),
+            array('.example@localhost'),
+            array('ex\ample@localhost'),
+            array('example@local\host'),
+            array('example@localhost.'),
         );
     }
 }
