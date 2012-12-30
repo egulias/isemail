@@ -40,7 +40,7 @@ class EmailLexer extends AbstractLexer
      *
      * @var array
      */
-    protected $nameValue = array(
+    protected $charValue = array(
         '('    => self::S_OPENPARENTHESIS,
         ')'    => self::S_CLOSEPARENTHESIS,
         '<'    => self::S_LOWERTHAN,
@@ -89,7 +89,7 @@ class EmailLexer extends AbstractLexer
         if (isset($this->nameValue[$type])) {
             $ref = new \ReflectionClass($this);
             foreach ($ref->getConstants() as $name => $value) {
-                if ($value === $this->nameValue[$type]) {
+                if ($value === $this->charValue[$type]) {
                     return $name;
                 }
             }
@@ -121,9 +121,9 @@ class EmailLexer extends AbstractLexer
      *
      * @return mixed
      */
-    protected function moveNext()
+    public function moveNext()
     {
-        $this->preious = $this->token;
+        $this->previous = $this->token;
         return parent::moveNext();
     }
     /**
@@ -140,8 +140,8 @@ class EmailLexer extends AbstractLexer
     protected function determineTypeAndValue($value)
     {
         $ascii = ord($value);
-        if (isset($this->nameValue[$value])) {
-            return array($value, $this->nameValue[$value]);
+        if (isset($this->charValue[$value])) {
+            return array($value, $this->charValue[$value]);
         } elseif ($ascii <= 127) {
             return array($value, $ascii);
         }
