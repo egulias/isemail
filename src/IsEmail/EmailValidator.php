@@ -13,7 +13,7 @@ class EmailValidator
     protected $parser;
     protected $warnings = array();
     protected $error;
-    protected $threshold = 16;
+    protected $threshold = 70;
     protected $emailParts = array();
 
     public function __construct()
@@ -28,19 +28,15 @@ class EmailValidator
             $this->emailParts = explode('@', $email);
             $this->warnings = $this->parser->getWarnings();
         } catch (\Exception $e) {
-            $this->error = $e->getMessage();
-            //echo $e->getFile() . ' ' . $e->getLine() . PHP_EOL;
-            //var_dump($e->getTrace());
-            //echo PHP_EOL . $e->getMessage();
-
             return false;
         }
 
         if ($checkDNS) {
             $dns = $this->checkDNS();
         }
-        if ($this->hasWarnings() && ((int) max($this->warnings) > self::DEPREC)) {
-            throw new \InvalidArgumentException("ERR_DEPREC_REACHED");
+        if ($this->hasWarnings() && ((int) max($this->warnings) > $this->threshold)) {
+            $this->error = "ERR_DEPREC_REACHED";
+            return false;
         }
 
         return ($strict) ? (!$this->hasWarnings() && $dns) : true;
@@ -83,7 +79,7 @@ class EmailValidator
      *
      * @return EmailValidator
      */
-    public function setThreshols($threshold)
+    public function setThreshold($threshold)
     {
         $this->threshold = (int) $threshold;
 

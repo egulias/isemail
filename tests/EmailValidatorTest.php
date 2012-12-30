@@ -83,7 +83,7 @@ class EmailValidatorTest extends \PHPUnit_Framework_TestCase
     /**
      * @dataProvider getInvalidEmails
      */
-    public function testInvalidEmails($email)
+    public function testTInvalidEmails($email)
     {
         $this->assertFalse($this->validator->isValid($email));
     }

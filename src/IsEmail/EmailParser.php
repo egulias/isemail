@@ -169,24 +169,28 @@ class EmailParser extends AbstractParser
             } else {
                 $this->domainPart .= $this->lexer->token[1];
             }
+            if ($this->lexer->token[0] === EmailLexer::S_BACKSLASH) {
+                throw new \InvalidArgumentException("ERR_EXPECTING_ATEXT");
+            }
             $this->parseFWS();
             $this->lexer->moveNext();
         } while ($this->lexer->token);
-        $length = $this->lexer->token[1];
+        $last = $this->lexer->getPrevious();
+        $length = $last[1];
 
         if ($length > self::RFC5322_LABEL_TOOLONG) {
             $this->warnings[] = self::RFC5322_LOCAL_TOOLONG;
         }
-        if ($this->lexer->token[0] === EmailLexer::S_DOT) {
+        if ($last[0] === EmailLexer::S_DOT) {
             throw new \InvalidArgumentException("ERR_DOT_END");
         }
-        if ($this->lexer->token[0] === EmailLexer::S_HYPHEN) {
+        if ($last[0] === EmailLexer::S_HYPHEN) {
             throw new \InvalidArgumentException("ERR_DOMAINHYPHENEND");
         }
         if ($length > self::RFC5322_DOMAIN_TOOLONG) {
             $this->warnings[] = self::RFC5322_DOMAIN_TOOLONG;
         }
-        if ($this->lexer->token[0] === EmailLexer::S_CR) {
+        if ($last[0] === EmailLexer::S_CR) {
             throw new \InvalidArgumentException("ERR_FWS_CRLF_END");
         }
     }
@@ -349,6 +353,9 @@ class EmailParser extends AbstractParser
 
             if ($this->lexer->token[0] === EmailLexer::S_DOT && $this->lexer->isNext(EmailLexer::S_AT)) {
                 throw new \InvalidArgumentException("ERR_DOT_END");
+            }
+            if ($this->lexer->token[0] === EmailLexer::S_BACKSLASH) {
+                throw new \InvalidArgumentException("ERR_EXPECTING_ATEXT");
             }
 
             if ($this->isCRLF()) {
