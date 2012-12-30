@@ -33,6 +33,7 @@ class EmailLexer extends AbstractLexer
     const S_SEMICOLON        = 275;//';'
     const S_OPENQBRACKET     = 276;//'[';
     const S_CLOSEQBRACKET    = 277;//']';
+    const S_EMPTY            = 278;//'';
 
     /**
      * US-ASCII visible characters not valid for atext (@link http://tools.ietf.org/html/rfc5322#section-3.2.3)
@@ -64,6 +65,7 @@ class EmailLexer extends AbstractLexer
         '>'    => self::S_GREATERTHAN,
         '{'    => self::S_OPENQBRACKET,
         '}'    => self::S_CLOSEQBRACKET,
+        ''     => self::S_EMPTY
     );
 
     protected $previous;
@@ -104,11 +106,21 @@ class EmailLexer extends AbstractLexer
         $search->skipUntil($type);
     }
 
+    /**
+     * getPrevious
+     *
+     * @return array token
+     */
     public function getPrevious()
     {
-        return $this->preious;
+        return $this->previous;
     }
 
+    /**
+     * moveNext
+     *
+     * @return mixed
+     */
     protected function moveNext()
     {
         $this->preious = $this->token;
