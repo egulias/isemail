@@ -6,16 +6,10 @@ use IsEmail\EmailParser;
 
 class EmailParserTests extends \PHPUnit_Framework_TestCase
 {
-
     public function testParserExtendsLib()
     {
-        $parser = new EmailParser();
+        $mock = $this->getMock('IsEmail\EmailLexer');
+        $parser = new EmailParser($mock);
         $this->assertInstanceOf('JMS\Parser\AbstractParser', $parser);
-    }
-
-    public function testEmailTokens()
-    {
-        $parser = new EmailParser();
-
     }
 }
