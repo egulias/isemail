@@ -23,6 +23,7 @@ class EmailValidatorTest extends \PHPUnit_Framework_TestCase
      */
     public function testValidEmails($email)
     {
+        $this->fail('Until JMS\Parser\AbstractLexer is fixed');
         $this->assertTrue($this->validator->isValid($email));
     }
 
@@ -42,6 +43,7 @@ class EmailValidatorTest extends \PHPUnit_Framework_TestCase
      */
     public function testInvalidEmails($email)
     {
+        $this->fail('Until JMS\Parser\AbstractLexer is fixed');
         $this->assertFalse($this->validator->isValid($email));
     }
 

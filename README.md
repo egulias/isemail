@@ -1,6 +1,9 @@
 EmailValidator (old is_email)
 =============================
 
+[![Build Status](https://travis-ci.org/egulias/isemail.png?branch=master)](https://travis-ci.org/egulias/isemail)
+Failing until [Parser-Lib PR](https://github.com/schmittjoh/parser-lib/pull/2) is accepted or another solution is used.
+
 How to use ?
 ------------
 
