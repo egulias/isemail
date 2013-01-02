@@ -10,7 +10,6 @@ class EmailLexer extends AbstractLexer
     const C_DEL = 127;
     const C_NUL = 0;
 
-
     const S_AT               = 256;//'@';
     const S_BACKSLASH        = 257;//'\\';
     const S_DOT              = 258;//'.';
@@ -33,7 +32,9 @@ class EmailLexer extends AbstractLexer
     const S_SEMICOLON        = 275;//';'
     const S_OPENQBRACKET     = 276;//'[';
     const S_CLOSEQBRACKET    = 277;//']';
-    const S_EMPTY            = 278;//'';
+    const S_EMPTY            = null;//'';
+    const GENERIC            = 300;
+    const CRLF               = 301;
 
     /**
      * US-ASCII visible characters not valid for atext (@link http://tools.ietf.org/html/rfc5322#section-3.2.3)
@@ -57,9 +58,10 @@ class EmailLexer extends AbstractLexer
         '-'    => self::S_HYPHEN,
         '::'   => self::S_DOUBLECOLON,
         ' '    => self::S_SP,
-        '\t'   => self::S_HTAB,
-        '\r'   => self::S_CR,
-        '\n'   => self::S_LF,
+        "\t"   => self::S_HTAB,
+        "\r"   => self::S_CR,
+        "\n"   => self::S_LF,
+        "\r\n" => self::CRLF,
         'IPv6' => self::S_IPV6TAG,
         '<'    => self::S_LOWERTHAN,
         '>'    => self::S_GREATERTHAN,
@@ -70,20 +72,13 @@ class EmailLexer extends AbstractLexer
 
     protected $previous;
 
-    public function setInput($str)
-    {
-        $tokens = str_split($str);
-
-        $this->tokens = array();
-        foreach ($tokens as $i => $chr) {
-            $token = array();
-            $token[1] = $i;
-            list($token[2], $token[0]) = $this->determineTypeAndValue($chr);
-            $this->tokens[] = $token;
-        }
-        $this->reset();
-    }
-
+    /**
+     * getName
+     *
+     * @param string $type
+     *
+     * @return string $name
+     */
     public function getName($type)
     {
         $ref = new \ReflectionClass($this);
@@ -91,9 +86,6 @@ class EmailLexer extends AbstractLexer
             if ($value === $type) {
                 return $name;
             }
-        }
-        if ($type <= 127) {
-            return chr($type);
         }
 
         throw new \InvalidArgumentException(sprintf('There is no token with value %s.', json_encode($type)));
@@ -126,26 +118,44 @@ class EmailLexer extends AbstractLexer
         return parent::moveNext();
     }
 
-    public function isNext($type)
-    {
-        $type = array_search($type, $this->charValue);
-        return parent::isNext($type);
-    }
+    //public function isNext($type)
+    //{
+    //    $type = array_search($type, $this->charValue);
+    //    return parent::isNext($type);
+    //}
 
-    public function isNextAny(array $types)
-    {
-        foreach ($types as $i => $type) {
-            $types[$i] = array_search($type, $this->charValue);
-        }
-        return parent::isNextAny($types);
-    }
+    //public function isNextAny(array $types)
+    //{
+    //    foreach ($types as $i => $type) {
+    //        $types[$i] = array_search($type, $this->charValue);
+    //    }
+    //    return parent::isNextAny($types);
+    //}
 
     /**
      * {@inherit}
      */
     protected function getRegex()
     {
-        return '//';
+        return '/
+            # Alphabetic-chars and IPv6 or 4
+            ([a-zA-Z]+[4,6]?)
+
+            # Numbers
+            | ([0-9]+)
+
+            #CRLF
+            | (\r\n)
+
+            #double colon
+            | (::)
+
+            # Whitespace
+            | (\s+)
+
+            # Anything that is left as single character tokens
+            | (.)
+            /x';
     }
 
     /**
@@ -153,12 +163,10 @@ class EmailLexer extends AbstractLexer
      */
     protected function determineTypeAndValue($value)
     {
-        $ascii = ord($value);
         if (isset($this->charValue[$value])) {
             return array($value, $this->charValue[$value]);
-        } elseif ($ascii <= 127) {
-            return array($value, $ascii);
         }
+        return array($value, self::GENERIC);
 
         throw new \InvalidArgumentException(sprintf('There is no token with value %s.', json_encode($value)));
     }
