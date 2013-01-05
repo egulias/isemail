@@ -38,7 +38,7 @@ if ($result) {
 } else if ($validator->hasWarnings()) {
 	echo 'Warning! ' . $email . ' has unusual/deprecated features (result code ' . var_export($validator->getWarnings(), true) . ')';
 } else {
-	echo $email . ' is not a valid email address (result code ' . $validator->getError . ')';
+	echo $email . ' is not a valid email address (result code ' . $validator->getError() . ')';
 }
 ```
 

@@ -123,12 +123,14 @@ class EmailLexer extends AbstractLexer
     public function moveNext()
     {
         $this->previous = $this->token;
+
         return parent::moveNext();
     }
 
     public function isNext($type)
     {
         $type = array_search($type, $this->charValue);
+
         return parent::isNext($type);
     }
 
@@ -137,6 +139,7 @@ class EmailLexer extends AbstractLexer
         foreach ($types as $i => $type) {
             $types[$i] = array_search($type, $this->charValue);
         }
+
         return parent::isNextAny($types);
     }
 

@@ -9,7 +9,6 @@ namespace IsEmail;
  */
 class EmailValidator
 {
-
     protected $parser;
     protected $warnings = array();
     protected $error;
@@ -35,7 +34,7 @@ class EmailValidator
             $dns = $this->checkDNS();
         }
         if ($this->hasWarnings() && ((int) max($this->warnings) > $this->threshold)) {
-            $this->error = "ERR_DEPREC_REACHED";
+            $this->error = 'ERR_DEPREC_REACHED';
             return false;
         }
 
@@ -195,6 +194,7 @@ class EmailValidator
             //    $this->warnings[] = self::RFC5321_TLDNUMERIC;
             //}
         }
+
         return $checked;
     }
 }
