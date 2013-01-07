@@ -38,7 +38,6 @@ class EmailParser extends AbstractParser
     const RFC5322_IPV6_COLONSTRT  = 76;
     const RFC5322_IPV6_COLONEND   = 77;
 
-<<<<<<< Updated upstream
     // Address is invalid for any purpose
     const ERR_CONSECUTIVEATS     = 128;
     const ERR_EXPECTING_DTEXT    = 129;
