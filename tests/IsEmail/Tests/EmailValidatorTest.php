@@ -40,7 +40,7 @@ class EmailValidatorTest extends \PHPUnit_Framework_TestCase
     /**
      * @dataProvider getInvalidEmails
      */
-    public function estInvalidEmails($email)
+    public function testInvalidEmails($email)
     {
         $this->assertFalse($this->validator->isValid($email));
     }
@@ -95,6 +95,189 @@ class EmailValidatorTest extends \PHPUnit_Framework_TestCase
             array(EmailValidator::ERR_CR_NO_LF, "example@[\r]"),
             array(EmailValidator::ERR_CR_NO_LF, "exam\rple@example.co.uk"),
             array(EmailValidator::ERR_CR_NO_LF, "\"\r\"@localhost"),
+        );
+    }
+
+    /**
+     * @dataProvider getInvalidEmailsWithWarnings
+     */
+    public function testInvalidEmailsWithWarningsCheck($warnings, $email)
+    {
+        $this->assertTrue($this->validator->isValid($email, true));
+
+        $this->assertEquals($warnings, $this->validator->getWarnings());
+    }
+
+    public function getInvalidEmailsWithWarnings()
+    {
+        return array(
+            array(
+                array(
+                    EmailValidator::DEPREC_CFWS_NEAR_AT,
+                ),
+                'example @example.co.uk'
+            ),
+            array(
+                array(
+                    EmailValidator::DEPREC_CFWS_NEAR_AT,
+                ),
+                'example@ example.co.uk'
+            ),
+            array(
+                array(
+                    EmailValidator::CFWS_COMMENT,
+                ),
+                'example@example(example).co.uk'
+            ),
+            array(
+                array(
+                    EmailValidator::CFWS_COMMENT,
+                    EmailValidator::DEPREC_CFWS_NEAR_AT,
+                ),
+                'example(example)@example.co.uk'
+            ),
+
+            array(
+                array(
+                    EmailValidator::RFC5321_QUOTEDSTRING,
+                    EmailValidator::CFWS_FWS,
+                ),
+                "\"\t\"@example.co.uk"
+            ),
+            array(
+                array(
+                    EmailValidator::RFC5321_ADDRESSLITERAL,
+                    EmailValidator::DNSWARN_NO_MX_RECORD,
+                    EmailValidator::DNSWARN_NO_RECORD,
+                ),
+                'example@[127.0.0.1]'
+            ),
+            array(
+                array(
+                    EmailValidator::RFC5321_ADDRESSLITERAL,
+                    EmailValidator::DNSWARN_NO_MX_RECORD,
+                    EmailValidator::DNSWARN_NO_RECORD,
+                ),
+                'example@[IPv6:2001:0db8:85a3:0000:0000:8a2e:0370:7334]'
+            ),
+            array(
+                array(
+                    EmailValidator::RFC5321_IPV6DEPRECATED,
+                    EmailValidator::RFC5321_ADDRESSLITERAL,
+                    EmailValidator::DNSWARN_NO_MX_RECORD,
+                    EmailValidator::DNSWARN_NO_RECORD,
+                ),
+                'example@[IPv6:2001:0db8:85a3:0000:0000:8a2e:0370::]'
+            ),
+            array(
+                array(
+                    EmailValidator::RFC5322_IPV6_MAXGRPS,
+                    EmailValidator::RFC5321_ADDRESSLITERAL,
+                    EmailValidator::DNSWARN_NO_MX_RECORD,
+                    EmailValidator::DNSWARN_NO_RECORD,
+                ),
+                'example@[IPv6:2001:0db8:85a3:0000:0000:8a2e:0370:7334::]'
+            ),
+            array(
+                array(
+                    EmailValidator::RFC5322_IPV6_2X2XCOLON,
+                    EmailValidator::RFC5321_ADDRESSLITERAL,
+                    EmailValidator::DNSWARN_NO_MX_RECORD,
+                    EmailValidator::DNSWARN_NO_RECORD,
+                ),
+                'example@[IPv6:1::1::1]'
+            ),
+
+            array(
+                array(
+                    EmailValidator::RFC5322_DOMLIT_OBSDTEXT,
+                    EmailValidator::RFC5322_DOMAINLITERAL,
+                    EmailValidator::DNSWARN_NO_MX_RECORD,
+                    EmailValidator::DNSWARN_NO_RECORD,
+                ),
+                "example@[\n]"
+            ),
+            array(
+                array(
+                    EmailValidator::RFC5322_DOMAINLITERAL,
+                    EmailValidator::DNSWARN_NO_MX_RECORD,
+                    EmailValidator::DNSWARN_NO_RECORD,
+                ),
+                'example@[::1]'
+            ),
+            array(
+                array(
+                    EmailValidator::RFC5322_DOMAINLITERAL,
+                    EmailValidator::DNSWARN_NO_MX_RECORD,
+                    EmailValidator::DNSWARN_NO_RECORD,
+                ),
+                'example@[::123.45.67.178]'
+            ),
+            array(
+                array(
+                    EmailValidator::RFC5322_IPV6_GRPCOUNT,
+                    EmailValidator::RFC5322_IPV6_COLONSTRT,
+                    EmailValidator::DNSWARN_NO_MX_RECORD,
+                    EmailValidator::DNSWARN_NO_RECORD,
+                ),
+                'example@[IPv6::2001:0db8:85a3:0000:0000:8a2e:0370:7334]'
+            ),
+            array(
+                array(
+                    EmailValidator::RFC5322_IPV6_BADCHAR,
+                    EmailValidator::DNSWARN_NO_MX_RECORD,
+                    EmailValidator::DNSWARN_NO_RECORD,
+                ),
+                'example@[IPv6:z001:0db8:85a3:0000:0000:8a2e:0370:7334]'
+            ),
+            array(
+                array(
+                    EmailValidator::RFC5322_IPV6_COLONEND,
+                    EmailValidator::DNSWARN_NO_MX_RECORD,
+                    EmailValidator::DNSWARN_NO_RECORD,
+                ),
+                'example@[IPv6:2001:0db8:85a3:0000:0000:8a2e:0370:]'
+            ),
+            array(
+                array(
+                    EmailValidator::RFC5321_QUOTEDSTRING,
+                ),
+                '"example"@example.co.uk'
+            ),
+            array(
+                array(
+                    EmailValidator::RFC5322_LOCAL_TOOLONG,
+                ),
+                'too_long_localpart_too_long_localpart_too_long_localpart_too_long_localpart@example.co.uk'
+            ),
+            array(
+                array(
+                    EmailValidator::RFC5322_LABEL_TOOLONG,
+                    EmailValidator::DNSWARN_NO_MX_RECORD,
+                    EmailValidator::DNSWARN_NO_RECORD,
+                ),
+                'example@toolonglocalparttoolonglocalparttoolonglocalparttoolonglocalpart.co.uk'
+            ),
+            array(
+                array(
+                    EmailValidator::RFC5322_DOMAIN_TOOLONG,
+                    EmailValidator::DNSWARN_NO_MX_RECORD,
+                    EmailValidator::DNSWARN_NO_RECORD,
+                ),
+                'example@toolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocal'.
+                'parttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalpart'.
+                'toolonglocalparttoolonglocalparttoolonglocalparttoolonglocalpart'
+            ),
+            array(
+                array(
+                    EmailValidator::RFC5322_TOOLONG,
+                    EmailValidator::DNSWARN_NO_MX_RECORD,
+                    EmailValidator::DNSWARN_NO_RECORD,
+                ),
+                'example@toolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocal'.
+                'parttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalpart'.
+                'toolonglocalparttoolonglocalparttoolonglocalparttoolonglocalpar'
+            ),
         );
     }
 }
