@@ -40,7 +40,7 @@ class EmailValidatorTest extends \PHPUnit_Framework_TestCase
     /**
      * @dataProvider getInvalidEmails
      */
-    public function testInvalidEmails($email)
+    public function estInvalidEmails($email)
     {
         $this->assertFalse($this->validator->isValid($email));
     }
@@ -79,20 +79,22 @@ class EmailValidatorTest extends \PHPUnit_Framework_TestCase
             array(EmailValidator::ERR_CONSECUTIVEDOTS, 'example..example@example.co.uk'),
             array(EmailValidator::ERR_CONSECUTIVEDOTS, 'example@example..co.uk'),
             array(EmailValidator::ERR_EXPECTING_ATEXT, '<fabien_potencier>@example.fr'),
-            //array(EmailValidator::ERR_DOT_START, '.example@localhost'),
-            //array(EmailValidator::ERR_DOT_START, 'example@.localhost'),
-            //array(EmailValidator::ERR_DOT_END, 'example@localhost.'),
-            //array(EmailValidator::ERR_DOT_END, 'example.@example.co.uk'),
-            //array(EmailValidator::ERR_UNCLOSEDCOMMENT, '(example@localhost'),
-            //array(EmailValidator::ERR_UNCLOSEDQUOTEDSTR, '"example@localhost'),
-            //array(EmailValidator::ERR_EXPECTING_ATEXT, 'exa"mple@localhost'),
+            array(EmailValidator::ERR_DOT_START, '.example@localhost'),
+            array(EmailValidator::ERR_DOT_START, 'example@.localhost'),
+            array(EmailValidator::ERR_DOT_END, 'example@localhost.'),
+            array(EmailValidator::ERR_DOT_END, 'example.@example.co.uk'),
+            array(EmailValidator::ERR_UNCLOSEDCOMMENT, '(example@localhost'),
+            array(EmailValidator::ERR_UNCLOSEDQUOTEDSTR, '"example@localhost'),
+            array(EmailValidator::ERR_EXPECTING_ATEXT, 'exa"mple@localhost'),
+            //This was the original. But atext is not allowed after \n
             //array(EmailValidator::ERR_EXPECTING_ATEXT, "exampl\ne@example.co.uk"),
-            //array(EmailValidator::ERR_EXPECTING_DTEXT, "example@[[]"),
-            //array(EmailValidator::ERR_ATEXT_AFTER_CFWS, "exampl\te@example.co.uk"),
-            //array(EmailValidator::ERR_CR_NO_LF, "example@exa\rmple.co.uk"),
-            //array(EmailValidator::ERR_CR_NO_LF, "example@[\r]"),
-            //array(EmailValidator::ERR_CR_NO_LF, "exam\rple@example.co.uk"),
-            //array(EmailValidator::ERR_CR_NO_LF, "\"\r\"@localhost"),
+            array(EmailValidator::ERR_ATEXT_AFTER_CFWS, "exampl\ne@example.co.uk"),
+            array(EmailValidator::ERR_EXPECTING_DTEXT, "example@[[]"),
+            array(EmailValidator::ERR_ATEXT_AFTER_CFWS, "exampl\te@example.co.uk"),
+            array(EmailValidator::ERR_CR_NO_LF, "example@exa\rmple.co.uk"),
+            array(EmailValidator::ERR_CR_NO_LF, "example@[\r]"),
+            array(EmailValidator::ERR_CR_NO_LF, "exam\rple@example.co.uk"),
+            array(EmailValidator::ERR_CR_NO_LF, "\"\r\"@localhost"),
         );
     }
 }

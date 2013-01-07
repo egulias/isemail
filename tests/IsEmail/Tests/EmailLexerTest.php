@@ -25,6 +25,15 @@ class EmailLexerTests extends \PHPUnit_Framework_TestCase
         $this->assertEquals($token, $lexer->token[0]);
     }
 
+    public function testLexerForTab()
+    {
+        $lexer = new EmailLexer();
+        $lexer->setInput("foo\tbar");
+        $lexer->skipUntil(EmailLexer::S_HTAB);
+        $lexer->moveNext();
+        $this->assertEquals(EmailLexer::S_HTAB, $lexer->token[0]);
+    }
+
     public function getTokens()
     {
         return array(
@@ -54,7 +63,8 @@ class EmailLexerTests extends \PHPUnit_Framework_TestCase
             array('>', EmailLexer::S_GREATERTHAN),
             array('{', EmailLexer::S_OPENQBRACKET),
             array('}', EmailLexer::S_CLOSEQBRACKET),
-            array('',  EmailLexer::S_EMPTY)
+            array('',  EmailLexer::S_EMPTY),
+            array(chr(31),  EmailLexer::INVALID)
         );
     }
 }

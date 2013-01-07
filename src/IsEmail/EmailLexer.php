@@ -10,11 +10,11 @@ class EmailLexer extends AbstractLexer
     const C_DEL = 127;
     const C_NUL = 0;
 
-    const S_AT               = 256;//'@';
-    const S_BACKSLASH        = 257;//'\\';
-    const S_DOT              = 258;//'.';
-    const S_DQUOTE           = 259;//'"';
-    const S_OPENPARENTHESIS  = 260;//'(';
+    const S_AT               = 64;//'@';
+    const S_BACKSLASH        = 92;//'\\';
+    const S_DOT              = 46;//'.';
+    const S_DQUOTE           = 34;//'"';
+    const S_OPENPARENTHESIS  = 49;//'(';
     const S_CLOSEPARENTHESIS = 261;//')';
     const S_OPENBRACKET      = 262;//'[';
     const S_CLOSEBRACKET     = 263;//']';
@@ -35,6 +35,7 @@ class EmailLexer extends AbstractLexer
     const S_EMPTY            = null;//'';
     const GENERIC            = 300;
     const CRLF               = 301;
+    const INVALID            = 302;
 
     /**
      * US-ASCII visible characters not valid for atext (@link http://tools.ietf.org/html/rfc5322#section-3.2.3)
@@ -121,9 +122,7 @@ class EmailLexer extends AbstractLexer
 
     public function isNext($type)
     {
-        $type = array_search($type, $this->charValue);
-
-        return parent::isNext($type);
+        return null !== $this->next && $type === $this->next[0];
     }
 
     public function isNextAny(array $types)
@@ -156,9 +155,12 @@ class EmailLexer extends AbstractLexer
             # Whitespace
             | (\s+)
 
+            #Special
+            | ([\x1-\x1F]+)
+
             # Anything that is left as single character tokens
             | (.)
-            /x';
+            /xu';
     }
 
     /**
@@ -169,8 +171,16 @@ class EmailLexer extends AbstractLexer
         if (isset($this->charValue[$value])) {
             return array($value, $this->charValue[$value]);
         }
+
+        if (preg_match('/[\x1-\x1F]+/', $value)) {
+            return array($value, self::INVALID);
+        }
+
+        if (preg_match('/[\x7f-\xff]+/', $value)) {
+            throw new \InvalidArgumentException(sprintf('There is no token with value %s.', json_encode($value)));
+        }
+
         return array($value, self::GENERIC);
 
-        throw new \InvalidArgumentException(sprintf('There is no token with value %s.', json_encode($value)));
     }
 }
