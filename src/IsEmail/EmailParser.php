@@ -38,6 +38,7 @@ class EmailParser extends AbstractParser
     const RFC5322_IPV6_COLONSTRT  = 76;
     const RFC5322_IPV6_COLONEND   = 77;
 
+<<<<<<< Updated upstream
     // Address is invalid for any purpose
     const ERR_CONSECUTIVEATS     = 128;
     const ERR_EXPECTING_DTEXT    = 129;
@@ -212,11 +213,7 @@ class EmailParser extends AbstractParser
                 $this->parseFWS();
             }
             if ($this->lexer->isNext(EmailLexer::S_CR)) {
-                $addressLiteral .= $this->lexer->token[1];
-                $this->lexer->moveNext();
-                if (!$this->lexer->isNext(EmailLexer::S_LF)) {
-                    throw new \InvalidArgumentException('ERR_CR_NO_LF');
-                }
+                throw new \InvalidArgumentException("ERR_CR_NO_LF");
             }
             if ($this->lexer->token[0] === EmailLexer::S_BACKSLASH) {
                 $this->warnings[] = self::RFC5322_DOMLIT_OBSDTEXT;
@@ -399,8 +396,6 @@ class EmailParser extends AbstractParser
             $this->lexer->moveNext();
         }
 
-        $this->cFWSNearAt();
-
         return $comment;
     }
 
@@ -416,8 +411,11 @@ class EmailParser extends AbstractParser
         } elseif (!$this->isCRLF() && $this->lexer->token[0] === EmailLexer::S_CR) {
             throw new \InvalidArgumentException('ERR_CR_NO_LF');
         }
-        if ($this->lexer->token[0] === EmailLexer::S_CR && $this->lexer->isNext(EmailLexer::S_CR)) {
-            throw new \InvalidArgumentException('ERR_FWS_CRLF_X2');
+        if ($this->lexer->token[0] === EmailLexer::CRLF && $this->lexer->isNext(EmailLexer::CRLF)) {
+            throw new \InvalidArgumentException("ERR_FWS_CRLF_X2");
+        }
+        if ($this->lexer->token[0] === EmailLexer::S_CR) {
+            throw new \InvalidArgumentException("ERR_CR_NO_LF");
         }
         if ($this->lexer->token[0] === EmailLexer::S_LF || $this->lexer->token[0] === EmailLexer::C_NUL) {
             throw new \InvalidArgumentException('ERR_EXPECTING_CTEXT');

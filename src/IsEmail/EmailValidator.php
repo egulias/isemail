@@ -9,6 +9,33 @@ namespace IsEmail;
  */
 class EmailValidator
 {
+    // Address is invalid for any purpose
+    const ERR_CONSECUTIVEATS     = 128;
+    const ERR_EXPECTING_DTEXT    = 129;
+    const ERR_NOLOCALPART        = 130;
+    const ERR_NODOMAIN           = 131;
+    const ERR_CONSECUTIVEDOTS    = 132;
+    const ERR_ATEXT_AFTER_CFWS   = 133;
+    const ERR_ATEXT_AFTER_QS     = 134;
+    const ERR_ATEXT_AFTER_DOMLIT = 135;
+    const ERR_EXPECTING_QPAIR    = 136;
+    const ERR_EXPECTING_ATEXT    = 137;
+    const ERR_EXPECTING_QTEXT    = 138;
+    const ERR_EXPECTING_CTEXT    = 139;
+    const ERR_BACKSLASHEND       = 140;
+    const ERR_DOT_START          = 141;
+    const ERR_DOT_END            = 142;
+    const ERR_DOMAINHYPHENSTART  = 143;
+    const ERR_DOMAINHYPHENEND    = 144;
+    const ERR_UNCLOSEDQUOTEDSTR  = 145;
+    const ERR_UNCLOSEDCOMMENT    = 146;
+    const ERR_UNCLOSEDDOMLIT     = 147;
+    const ERR_FWS_CRLF_X2        = 148;
+    const ERR_FWS_CRLF_END       = 149;
+    const ERR_CR_NO_LF           = 150;
+    const ERR_DEPREC_REACHED     = 151;
+
+
     protected $parser;
     protected $warnings = array();
     protected $error;
@@ -27,6 +54,8 @@ class EmailValidator
             $this->emailParts = explode('@', $email);
             $this->warnings = $this->parser->getWarnings();
         } catch (\Exception $e) {
+            $rClass = new \ReflectionClass($this);
+            $this->error = $rClass->getConstant($e->getMessage());
             return false;
         }
 
@@ -34,7 +63,8 @@ class EmailValidator
             $dns = $this->checkDNS();
         }
         if ($this->hasWarnings() && ((int) max($this->warnings) > $this->threshold)) {
-            $this->error = 'ERR_DEPREC_REACHED';
+            $this->error = self::ERR_DEPREC_REACHED;
+
             return false;
         }
 
