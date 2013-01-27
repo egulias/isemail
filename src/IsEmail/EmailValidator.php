@@ -69,7 +69,7 @@ class EmailValidator
     protected $parser;
     protected $warnings = array();
     protected $error;
-    protected $threshold = 70;
+    protected $threshold = 255;
     protected $emailParts = array();
 
     public function __construct()
@@ -182,30 +182,14 @@ class EmailValidator
             // sufficient evidence of the domain's existence. For performance reasons
             // we will not repeat the DNS lookup for the CNAME's target, but we will
             // raise a warning because we didn't immediately find an MX record.
-        //if ($this->elementCount === 0) {
-        //    // Checking TLD DNS seems to work only if you explicitly check from the root
-        //    $this->parseData[self::COMPONENT_DOMAIN] .= '.';
-        //}
 
-        // Not using checkdnsrr because of a suspected bug in PHP 5.3 (http://bugs.php.net/bug.php?id=51844)
-        $result = @dns_get_record($this->emailParts[1], DNS_MX);
+        $result = checkdnsrr(trim($this->parser->getParsedDomainPart()), 'MX');
         $checked = true;
-        if ((is_bool($result) && !(bool) $result)) {
+        if (!$result) {
             // Domain can't be found in DNS
             $this->warnings[] = self::DNSWARN_NO_RECORD;
             $checked = false;
-        } elseif (count($result) === 0) {
-            // MX-record for domain can't be found
-            $this->warnings[] = self::DNSWARN_NO_MX_RECORD;
-
-            $result = @dns_get_record($this->emailParts[1], DNS_A + DNS_CNAME);
-            if (count($result) === 0) {
-                // No usable records for the domain can be found
-                $this->warnings[] = self::DNSWARN_NO_RECORD;
-            }
-            $checked = false;
         }
-
 
         // Check for TLD addresses
         // -----------------------
