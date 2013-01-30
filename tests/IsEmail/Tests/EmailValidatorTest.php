@@ -205,14 +205,16 @@ class EmailValidatorTest extends \PHPUnit_Framework_TestCase
           ),
           array(
               array(
-                  EmailValidator::RFC5322_IPV6_GRPCOUNT,
                   EmailValidator::RFC5322_IPV6_COLONSTRT,
+                  EmailValidator::RFC5321_ADDRESSLITERAL,
+                  EmailValidator::RFC5322_IPV6_GRPCOUNT,
                   EmailValidator::DNSWARN_NO_RECORD,
               ),
               'example@[IPv6::2001:0db8:85a3:0000:0000:8a2e:0370:7334]'
           ),
          array(
              array(
+                 EmailValidator::RFC5321_ADDRESSLITERAL,
                  EmailValidator::RFC5322_IPV6_BADCHAR,
                  EmailValidator::DNSWARN_NO_RECORD,
              ),
@@ -221,6 +223,7 @@ class EmailValidatorTest extends \PHPUnit_Framework_TestCase
          array(
              array(
                  EmailValidator::RFC5322_IPV6_COLONEND,
+                 EmailValidator::RFC5321_ADDRESSLITERAL,
                  EmailValidator::DNSWARN_NO_RECORD,
              ),
              'example@[IPv6:2001:0db8:85a3:0000:0000:8a2e:0370:]'
@@ -247,6 +250,7 @@ class EmailValidatorTest extends \PHPUnit_Framework_TestCase
          array(
              array(
                  EmailValidator::RFC5322_DOMAIN_TOOLONG,
+                 EmailValidator::RFC5322_TOOLONG,
                  EmailValidator::DNSWARN_NO_RECORD,
              ),
              'example@toolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocalparttoolonglocal'.
@@ -255,6 +259,7 @@ class EmailValidatorTest extends \PHPUnit_Framework_TestCase
          ),
          array(
              array(
+                 EmailValidator::RFC5322_DOMAIN_TOOLONG,
                  EmailValidator::RFC5322_TOOLONG,
                  EmailValidator::DNSWARN_NO_RECORD,
              ),

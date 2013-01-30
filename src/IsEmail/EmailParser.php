@@ -183,10 +183,16 @@ class EmailParser extends AbstractParser
                 $this->parseDomainLiteral();
             }
 
-            if ($this->lexer->token[0] === EmailLexer::S_BACKSLASH) {
-                if ($this->lexer->isNext(EmailLexer::GENERIC)) {
-                    throw new \InvalidArgumentException('ERR_EXPECTING_ATEXT');
-                }
+            if ($this->lexer->token[0] === EmailLexer::S_BACKSLASH && $this->lexer->isNext(EmailLexer::GENERIC)) {
+                throw new \InvalidArgumentException('ERR_EXPECTING_ATEXT');
+            }
+
+            if (
+                $this->lexer->token[0] === EmailLexer::S_DOT &&
+                $prev[0] === EmailLexer::GENERIC &&
+                strlen($prev[2]) > 63
+            ) {
+                $this->warnings[] = self::RFC5322_LABEL_TOOLONG;
             }
 
             if (
@@ -203,18 +209,15 @@ class EmailParser extends AbstractParser
         } while ($this->lexer->token);
 
         $last = $this->lexer->getPrevious();
-        $length = $last[1];
+        $length = strlen($last[2]);
 
-        if ($length > self::RFC5322_LABEL_TOOLONG) {
-            $this->warnings[] = self::RFC5322_LOCAL_TOOLONG;
-        }
         if ($last[0] === EmailLexer::S_DOT) {
             throw new \InvalidArgumentException('ERR_DOT_END');
         }
         if ($last[0] === EmailLexer::S_HYPHEN) {
             throw new \InvalidArgumentException('ERR_DOMAINHYPHENEND');
         }
-        if ($length > self::RFC5322_DOMAIN_TOOLONG) {
+        if ($length > 254) {
             $this->warnings[] = self::RFC5322_DOMAIN_TOOLONG;
         }
         if ($last[0] === EmailLexer::S_CR) {
@@ -227,6 +230,22 @@ class EmailParser extends AbstractParser
     {
         $IPv6TAG = false;
         $addressLiteral = '';
+        if ($this->lexer->isNext(EmailLexer::S_COLON)) {
+            // Address starts with a single colon
+            $this->warnings[] = self::RFC5322_IPV6_COLONSTRT;
+        }
+        if ($this->lexer->isNext(EmailLexer::S_IPV6TAG)) {
+            try {
+                $lexer = clone $this->lexer;
+                $lexer->moveNext();
+                if ($lexer->isNext(EmailLexer::S_DOUBLECOLON)) {
+                    $this->warnings[] = self::RFC5322_IPV6_COLONSTRT;
+                }
+            } catch (\Exception $e) {
+                break;
+            }
+
+        }
         do {
             if ($this->lexer->token[0] === EmailLexer::C_NUL) {
                 throw new \InvalidArgumentException('ERR_EXPECTING_DTEXT');
@@ -269,6 +288,12 @@ class EmailParser extends AbstractParser
             $addressLiteral .= $this->lexer->token[2];
 
         } while ($this->lexer->moveNext());
+        // Revision 2.7: Daniel Marschall's new IPv6 testing strategy
+        $prev = $this->lexer->getPrevious();
+        if ($prev[0] === EmailLexer::S_COLON) {
+            // Address ends with a single colon
+            $this->warnings[] = self::RFC5322_IPV6_COLONEND;
+        }
 
         $addressLiteral = str_replace('[', '', $addressLiteral);
 
@@ -296,13 +321,20 @@ class EmailParser extends AbstractParser
             $this->warnings[] = self::RFC5322_DOMAINLITERAL;
             return;
         }
+
         $this->warnings[] = EmailValidator::RFC5321_ADDRESSLITERAL;
 
-        $IPv6       = substr($addressLiteral, 6);
+        $IPv6       = substr($addressLiteral, 5);
         //Daniel Marschall's new IPv6 testing strategy
         $matchesIP  = explode(':', $IPv6);
         $groupCount = count($matchesIP);
         $colons     = strpos($IPv6, '::');
+        $matches = array();
+
+        if (count(preg_grep('/^[0-9A-Fa-f]{0,4}$/', $matchesIP, PREG_GREP_INVERT)) !== 0) {
+            // Check for unmatched characters
+            $this->warnings[] = self::RFC5322_IPV6_BADCHAR;
+        }
 
         if ($colons === false) {
             // We need exactly the right number of groups
@@ -328,17 +360,6 @@ class EmailParser extends AbstractParser
             }
         }
 
-        // Revision 2.7: Daniel Marschall's new IPv6 testing strategy
-        if ($IPv6{0} === EmailLexer::S_COLON && $IPv6{1} !== EmailLexer::S_COLON) {
-            // Address starts with a single colon
-            $this->warnings[] = self::RFC5322_IPV6_COLONSTRT;
-        } elseif (substr($IPv6, -1, 1) === EmailLexer::S_COLON && substr($IPv6, -2, 2) !== EmailLexer::S_DOUBLECOLON) {
-            // Address ends with a single colon
-            $this->warnings[] = self::RFC5322_IPV6_COLONEND;
-        } elseif (count(preg_grep('/^[0-9A-Fa-f]{0,4}$/', $matchesIP, PREG_GREP_INVERT)) !== 0) {
-            // Check for unmatched characters
-            $this->warnings[] = self::RFC5322_IPV6_BADCHAR;
-        }
 
         return $addressLiteral;
     }
