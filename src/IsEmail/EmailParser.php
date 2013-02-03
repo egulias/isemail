@@ -445,7 +445,6 @@ class EmailParser extends AbstractParser
                 $this->parseFWS();
             }
 
-            $this->localPart .= $this->lexer->token[1];
             $this->lexer->moveNext();
         }
 
