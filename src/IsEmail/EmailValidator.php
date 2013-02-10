@@ -65,7 +65,6 @@ class EmailValidator
     const DNSWARN_NO_MX_RECORD    = 5;
     const DNSWARN_NO_RECORD       = 6;
 
-
     protected $parser;
     protected $warnings = array();
     protected $error;

@@ -11,59 +11,6 @@ use JMS\Parser\AbstractParser;
  */
 class EmailParser extends AbstractParser
 {
-    const CFWS_COMMENT            = 17;
-    const CFWS_FWS                = 18;
-    // Address contains deprecated elements but may still be valid in restricted contexts
-    const DEPREC_LOCALPART        = 33;
-    const DEPREC_FWS              = 34;
-    const DEPREC_QTEXT            = 35;
-    const DEPREC_QP               = 36;
-    const DEPREC_COMMENT          = 37;
-    const DEPREC_CTEXT            = 38;
-    const DEPREC_CFWS_NEAR_AT     = 49;
-    const DEPREC                  = 63;
-
-    // The address is only valid according to the broad definition of RFC 5322. It is otherwise invalid.
-    const RFC5322_LOCAL_TOOLONG   = 64;
-    const RFC5322_LABEL_TOOLONG   = 63;
-    const RFC5322_DOMAIN          = 65;
-    const RFC5322_TOOLONG         = 66;
-    const RFC5322_DOMAIN_TOOLONG  = 255;
-    const RFC5322_DOMAINLITERAL   = 70;
-    const RFC5322_DOMLIT_OBSDTEXT = 71;
-    const RFC5322_IPV6_GRPCOUNT   = 72;
-    const RFC5322_IPV6_2X2XCOLON  = 73;
-    const RFC5322_IPV6_BADCHAR    = 74;
-    const RFC5322_IPV6_MAXGRPS    = 75;
-    const RFC5322_IPV6_COLONSTRT  = 76;
-    const RFC5322_IPV6_COLONEND   = 77;
-    const RFC5321_QUOTEDSTRING    = 78;
-    const RFC5321_IPV6DEPRECATED  = 13;
-
-    // Address is invalid for any purpose
-    const ERR_CONSECUTIVEATS     = 128;
-    const ERR_EXPECTING_DTEXT    = 129;
-    const ERR_NOLOCALPART        = 130;
-    const ERR_NODOMAIN           = 131;
-    const ERR_CONSECUTIVEDOTS    = 132;
-    const ERR_ATEXT_AFTER_CFWS   = 133;
-    const ERR_ATEXT_AFTER_QS     = 134;
-    const ERR_ATEXT_AFTER_DOMLIT = 135;
-    const ERR_EXPECTING_QPAIR    = 136;
-    const ERR_EXPECTING_ATEXT    = 137;
-    const ERR_EXPECTING_QTEXT    = 138;
-    const ERR_EXPECTING_CTEXT    = 139;
-    const ERR_BACKSLASHEND       = 140;
-    const ERR_DOT_START          = 141;
-    const ERR_DOT_END            = 142;
-    const ERR_DOMAINHYPHENSTART  = 143;
-    const ERR_DOMAINHYPHENEND    = 144;
-    const ERR_UNCLOSEDQUOTEDSTR  = 145;
-    const ERR_UNCLOSEDCOMMENT    = 146;
-    const ERR_UNCLOSEDDOMLIT     = 147;
-    const ERR_FWS_CRLF_X2        = 148;
-    const ERR_FWS_CRLF_END       = 149;
-    const ERR_CR_NO_LF           = 150;
 
     protected $warnings = array();
     protected $localPart = '';
@@ -103,7 +50,7 @@ class EmailParser extends AbstractParser
             //   limit on address lengths should normally be considered to be 254.
             //
             // http://tools.ietf.org/html/rfc1035#section-2.3.4
-            $this->warnings[] = self::RFC5322_TOOLONG;
+            $this->warnings[] = EmailValidator::RFC5322_TOOLONG;
         }
 
         return array('local' => $this->localPart, 'domain' => $this->domainPart);
@@ -145,7 +92,7 @@ class EmailParser extends AbstractParser
         // Comments at the start of a subdomain are obs-domain
         // (http://tools.ietf.org/html/rfc5322#section-3.4.1)
         if ($this->lexer->token[0] === EmailLexer::S_OPENPARENTHESIS) {
-            $this->warnings[] = self::DEPREC_COMMENT;
+            $this->warnings[] = EmailValidator::DEPREC_COMMENT;
             $this->parseComments();
         }
 
@@ -155,7 +102,7 @@ class EmailParser extends AbstractParser
                 throw new \InvalidArgumentException('ERR_EXPECTING_ATEXT');
             }
             if ($this->lexer->token[0] === EmailLexer::S_OPENPARENTHESIS) {
-                //$this->warnings[] = self::CFWS_COMMENT;
+                //$this->warnings[] = EmailValidator::CFWS_COMMENT;
                 $this->parseComments();
                 $this->lexer->moveNext();
             }
@@ -192,7 +139,7 @@ class EmailParser extends AbstractParser
                 $prev[0] === EmailLexer::GENERIC &&
                 strlen($prev[2]) > 63
             ) {
-                $this->warnings[] = self::RFC5322_LABEL_TOOLONG;
+                $this->warnings[] = EmailValidator::RFC5322_LABEL_TOOLONG;
             }
 
             if (
@@ -218,7 +165,7 @@ class EmailParser extends AbstractParser
             throw new \InvalidArgumentException('ERR_DOMAINHYPHENEND');
         }
         if ($length > 254) {
-            $this->warnings[] = self::RFC5322_DOMAIN_TOOLONG;
+            $this->warnings[] = EmailValidator::RFC5322_DOMAIN_TOOLONG;
         }
         if ($last[0] === EmailLexer::S_CR) {
             throw new \InvalidArgumentException('ERR_FWS_CRLF_END');
@@ -232,14 +179,14 @@ class EmailParser extends AbstractParser
         $addressLiteral = '';
         if ($this->lexer->isNext(EmailLexer::S_COLON)) {
             // Address starts with a single colon
-            $this->warnings[] = self::RFC5322_IPV6_COLONSTRT;
+            $this->warnings[] = EmailValidator::RFC5322_IPV6_COLONSTRT;
         }
         if ($this->lexer->isNext(EmailLexer::S_IPV6TAG)) {
             try {
                 $lexer = clone $this->lexer;
                 $lexer->moveNext();
                 if ($lexer->isNext(EmailLexer::S_DOUBLECOLON)) {
-                    $this->warnings[] = self::RFC5322_IPV6_COLONSTRT;
+                    $this->warnings[] = EmailValidator::RFC5322_IPV6_COLONSTRT;
                 }
             } catch (\Exception $e) {
                 break;
@@ -254,20 +201,20 @@ class EmailParser extends AbstractParser
                 $this->lexer->token[0] === EmailLexer::C_DEL   ||
                 $this->lexer->token[0] === EmailLexer::S_LF
             ) {
-                $this->warnings[] = self::RFC5322_DOMLIT_OBSDTEXT;
+                $this->warnings[] = EmailValidator::RFC5322_DOMLIT_OBSDTEXT;
             }
             if ($this->lexer->isNextAny(array(EmailLexer::S_OPENQBRACKET, EmailLexer::S_OPENBRACKET))) {
                 throw new \InvalidArgumentException('ERR_EXPECTING_DTEXT');
             }
             if ($this->lexer->isNextAny(array(EmailLexer::S_HTAB, EmailLexer::S_SP))) {
-                $this->warnings[] = self::CFWS_FWS;
+                $this->warnings[] = EmailValidator::CFWS_FWS;
                 $this->parseFWS();
             }
             if ($this->lexer->isNext(EmailLexer::S_CR)) {
                 throw new \InvalidArgumentException("ERR_CR_NO_LF");
             }
             if ($this->lexer->token[0] === EmailLexer::S_BACKSLASH) {
-                $this->warnings[] = self::RFC5322_DOMLIT_OBSDTEXT;
+                $this->warnings[] = EmailValidator::RFC5322_DOMLIT_OBSDTEXT;
                 $addressLiteral .= $this->lexer->token[2];
                 $this->lexer->moveNext();
                 $this->validateQuotedPair();
@@ -292,7 +239,7 @@ class EmailParser extends AbstractParser
         $prev = $this->lexer->getPrevious();
         if ($prev[0] === EmailLexer::S_COLON) {
             // Address ends with a single colon
-            $this->warnings[] = self::RFC5322_IPV6_COLONEND;
+            $this->warnings[] = EmailValidator::RFC5322_IPV6_COLONEND;
         }
 
         $addressLiteral = str_replace('[', '', $addressLiteral);
@@ -318,7 +265,7 @@ class EmailParser extends AbstractParser
         }
 
         if (!$IPv6TAG) {
-            $this->warnings[] = self::RFC5322_DOMAINLITERAL;
+            $this->warnings[] = EmailValidator::RFC5322_DOMAINLITERAL;
             return;
         }
 
@@ -333,17 +280,17 @@ class EmailParser extends AbstractParser
 
         if (count(preg_grep('/^[0-9A-Fa-f]{0,4}$/', $matchesIP, PREG_GREP_INVERT)) !== 0) {
             // Check for unmatched characters
-            $this->warnings[] = self::RFC5322_IPV6_BADCHAR;
+            $this->warnings[] = EmailValidator::RFC5322_IPV6_BADCHAR;
         }
 
         if ($colons === false) {
             // We need exactly the right number of groups
             if ($groupCount !== $maxGroups) {
-                $this->warnings[] = self::RFC5322_IPV6_GRPCOUNT;
+                $this->warnings[] = EmailValidator::RFC5322_IPV6_GRPCOUNT;
             }
         } else {
             if ($colons !== strrpos($IPv6, '::')) {
-                $this->warnings[] = self::RFC5322_IPV6_2X2XCOLON;
+                $this->warnings[] = EmailValidator::RFC5322_IPV6_2X2XCOLON;
             } else {
                 if ($colons === 0 || $colons === (strlen($IPv6) - 2)) {
                     // RFC 4291 allows :: at the start or end of an address
@@ -352,10 +299,10 @@ class EmailParser extends AbstractParser
                 }
 
                 if ($groupCount > $maxGroups) {
-                    $this->warnings[] = self::RFC5322_IPV6_MAXGRPS;
+                    $this->warnings[] = EmailValidator::RFC5322_IPV6_MAXGRPS;
                 } elseif ($groupCount === $maxGroups) {
                     // Eliding a single "::"
-                    $this->warnings[] = self::RFC5321_IPV6DEPRECATED;
+                    $this->warnings[] = EmailValidator::RFC5321_IPV6DEPRECATED;
                 }
             }
         }
@@ -375,7 +322,7 @@ class EmailParser extends AbstractParser
             throw new \InvalidArgumentException('ERR_EXPECTING_QPAIR');
         }
         // SP & HTAB are allowed
-        $this->warnings[] = self::DEPREC_QP;
+        $this->warnings[] = EmailValidator::DEPREC_QP;
     }
 
     private function parseLocalPart()
@@ -402,7 +349,7 @@ class EmailParser extends AbstractParser
                 //if ($previous[0] != EmailLexer::S_BACKSLASH) {
                 //    throw new \InvalidArgumentException('ERR_EXPECTING_ATEXT');
                 //}
-                //$this->warnings[] = self::DEPREC_LOCALPART;
+                //$this->warnings[] = EmailValidator::DEPREC_LOCALPART;
             }
             //Comments
             if ($this->lexer->token[0] === EmailLexer::S_OPENPARENTHESIS) {
@@ -419,7 +366,7 @@ class EmailParser extends AbstractParser
 
             if ($this->lexer->token[0] === EmailLexer::S_BACKSLASH) {
                 //if ($this->lexer->isNextAny(array(EmailLexer::S_SP, EmailLexer::S_HTAB, EmailLexer::C_DEL))) {
-                //    $this->warnings[] = self::DEPREC_QP;
+                //    $this->warnings[] = EmailValidator::DEPREC_QP;
                 //}
                 if ($this->lexer->isNext(EmailLexer::GENERIC)) {
                     throw new \InvalidArgumentException('ERR_EXPECTING_ATEXT');
@@ -449,8 +396,8 @@ class EmailParser extends AbstractParser
         }
 
         $prev = $this->lexer->getPrevious();
-        if ($prev[1] > self::RFC5322_LOCAL_TOOLONG) {
-            $this->warnings[] = self::RFC5322_LOCAL_TOOLONG;
+        if ($prev[1] > EmailValidator::RFC5322_LOCAL_TOOLONG) {
+            $this->warnings[] = EmailValidator::RFC5322_LOCAL_TOOLONG;
         }
     }
 
@@ -461,7 +408,7 @@ class EmailParser extends AbstractParser
      */
     private function parseComments()
     {
-        $this->warnings[] = self::CFWS_COMMENT;
+        $this->warnings[] = EmailValidator::CFWS_COMMENT;
         while (!$this->lexer->isNext(EmailLexer::S_CLOSEPARENTHESIS)) {
             try {
                 $this->lexer->find(EmailLexer::S_CLOSEPARENTHESIS);
@@ -473,7 +420,7 @@ class EmailParser extends AbstractParser
             //scaping in a comment
             if ($this->lexer->token[0] === EmailLexer::S_BACKSLASH) {
                 if ($this->lexer->isNextAny(array(EmailLexer::S_SP, EmailLexer::S_HTAB, EmailLexer::C_DEL))) {
-                    $this->warnings[] = self::DEPREC_QP;
+                    $this->warnings[] = EmailValidator::DEPREC_QP;
                 }
             }
             $this->lexer->moveNext();
@@ -484,7 +431,7 @@ class EmailParser extends AbstractParser
         }
 
         if ($this->lexer->isNext(EmailLexer::S_AT)) {
-            $this->warnings[] = self::DEPREC_CFWS_NEAR_AT;
+            $this->warnings[] = EmailValidator::DEPREC_CFWS_NEAR_AT;
         }
     }
 
@@ -516,9 +463,9 @@ class EmailParser extends AbstractParser
         }
 
         if ($this->lexer->isNext(EmailLexer::S_AT) || $previous[0]  === EmailLexer::S_AT) {
-            $this->warnings[] = self::DEPREC_CFWS_NEAR_AT;
+            $this->warnings[] = EmailValidator::DEPREC_CFWS_NEAR_AT;
         } else {
-            $this->warnings[] = self::CFWS_FWS;
+            $this->warnings[] = EmailValidator::CFWS_FWS;
         }
 
     }
