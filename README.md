@@ -1,5 +1,6 @@
 EmailValidator (old is_email)
 =============================
+**Work will continue here [EmailValidator](https://github.com/egulias/EmailValidator)**
 
 [![Build Status](https://travis-ci.org/egulias/isemail.png?branch=master)](https://travis-ci.org/egulias/isemail)
 
